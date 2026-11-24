@@ -20,4 +20,4 @@ Enter the following values in the Render dashboard.
 
 Render supplies `PORT`. If you have verified the inbound proxy addresses, set `TRUSTED_PROXY_CIDRS` to those IPs or CIDRs. Keep first-admin credentials scoped to the [one-time bootstrap](../phase-2.md).
 
-Once the readiness endpoint returns HTTP 200, set `RENDER_API_ORIGIN` in Vercel to the Render HTTPS origin and redeploy the dashboard. Verify sign-in and session refresh through the dashboard.
+Once the readiness endpoint returns HTTP 200, confirm that `apps/admin/vercel.json` points to the Render HTTPS origin and deploy the dashboard. Verify sign-in and session refresh through the dashboard.

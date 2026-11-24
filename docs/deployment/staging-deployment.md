@@ -9,6 +9,6 @@ Use the existing root Render Blueprint as the API template and create a separate
 | Start command | `npm run start:api` |
 | Readiness path | `/api/health/ready` |
 
-Create a dedicated Vercel project with `apps/admin` as its root and enable access to files outside the project directory. Apply the build and SPA settings in [Vercel admin](vercel-admin.md). Set `RENDER_API_ORIGIN` to the staging HTTPS API origin. Set `MOBILE_API_URL` to the same origin before starting Metro or building the signed APK. Export only the public origin to the mobile app.
+Create a dedicated Vercel project with `apps/admin` as its root and enable access to files outside the project directory. Apply the build and SPA settings in [Vercel admin](vercel-admin.md). In the staging deployment branch, point the `/api` rewrite in `apps/admin/vercel.json` at the staging HTTPS API origin. Set `MOBILE_API_URL` to the same origin before starting Metro or building the signed APK. Export only the public origin to the mobile app.
 
 Verify HTTPS readiness, the scopes of the bootstrap account and test employees, CORS, browser refresh and direct navigation to protected routes. Then exercise the private photo workflow and authorized evidence access with staging accounts. Record actual results in the launch checklist.

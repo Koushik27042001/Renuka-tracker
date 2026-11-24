@@ -61,7 +61,7 @@ Run `npm run test:api`, `npm run test:admin`, `npm run lint:api` and `npm run bu
 
 - `packages/shared/src/employees.ts` defines the shared inputs and response types. `packages/shared/src/index.ts` exports them.
 - `apps/api/src/modules/employees/` includes the repository, service, validation and routes. `EmployeeCounter.model.ts` adds the atomic code counter. The existing model registry, User and AuditLog models, app routing, audit writer, and auth context were extended.
-- `apps/admin/src/` contains the authenticated API client, auth pages, session provider, layout, employee list, form and profile screens. Files include `api.ts`, `AuthPages.tsx`, `session.tsx`, `main.tsx`, `styles.css`, `EmployeesPage.tsx`, `EmployeeForm.tsx`, and `EmployeeProfile.tsx`. `apps/admin/vercel.mjs` configures Vercel SPA and API rewrites.
+- `apps/admin/src/` contains the authenticated API client, auth pages, session provider, layout, employee list, form and profile screens. Files include `api.ts`, `AuthPages.tsx`, `session.tsx`, `main.tsx`, `styles.css`, `EmployeesPage.tsx`, `EmployeeForm.tsx`, and `EmployeeProfile.tsx`. `apps/admin/vercel.json` configures Vercel SPA and API rewrites.
 - `apps/api/test/employees.test.ts` and `apps/admin/test/employees.test.tsx` cover the API and UI. `apps/admin/test/employee-browser.mjs` drives the full workflow. The workspace and CI scripts run the new tests. Dependency changes live in the admin package and root lockfile.
 
 Phase 4 can link attendance to the immutable employee database ID, use the verified employee identity and active-session checks, and render attendance history on the existing profile when its API is available.
