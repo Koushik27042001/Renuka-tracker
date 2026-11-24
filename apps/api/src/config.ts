@@ -177,6 +177,9 @@ export function readConfig(env: NodeJS.ProcessEnv) {
   if (config.NODE_ENV === 'production') {
     const parameters = new URLSearchParams(config.MONGODB_URI.split('?')[1]);
     for (const [name, value] of parameters) {
+      if (/^(tls|ssl)$/i.test(name) && value.toLowerCase() === 'false') {
+        throw new Error('Production MongoDB connections require TLS');
+      }
       if (
         /^(tlsInsecure|tlsAllowInvalidCertificates|tlsAllowInvalidHostnames)$/i.test(name) &&
         value.toLowerCase() !== 'false'

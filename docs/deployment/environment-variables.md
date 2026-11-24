@@ -1,6 +1,6 @@
 # Release environment variables
 
-Use the API, admin, and mobile `.env.example` files as source of truth. Set the production Atlas URI, JWT access signing secret, exact HTTPS admin origins and private Cloudinary credentials on Render. Refresh tokens are opaque and stored as hashes. Optional provider credentials stay on the API.
+Use [the Render Blueprint](../../render.yaml) or [the manual Render environment template](../../apps/api/.env.render.example) for the production API. The API's `.env.example` is for local development. Set the production Atlas URI, JWT access signing secret, exact HTTPS admin origins and private Cloudinary credentials on Render. Refresh tokens are opaque and stored as hashes. Optional provider credentials stay on the API. Use the admin and mobile `.env.example` files for their respective builds.
 
 Set RENDER_API_ORIGIN on Vercel to the Render HTTPS origin. The hosted admin uses a same-origin API rewrite. VITE_API_URL is used by local and self-hosted builds. Configure approved map settings separately. Mobile builds receive their public HTTPS API origin and release version from exported build environment variables. Keep keystore credentials in a protected build environment.
 

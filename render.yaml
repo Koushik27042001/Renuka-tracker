@@ -13,17 +13,19 @@ services:
         value: 22.22.0
       - key: NODE_ENV
         value: production
+      - key: SKIP_INSTALL_DEPS
+        value: "true"
       - key: MONGOMS_DISABLE_POSTINSTALL
         value: "1"
       - key: HOST
         value: 0.0.0.0
       - key: COOKIE_SECURE
         value: "true"
+      - key: COOKIE_SAME_SITE
+        value: lax
       - key: MONGODB_URI
         sync: false
       - key: JWT_ACCESS_SECRET
-        sync: false
-      - key: TRUSTED_PROXY_CIDRS
         sync: false
       - key: ADMIN_ORIGINS
         sync: false
@@ -33,7 +35,11 @@ services:
         value: fieldforce/production/evidence
       - key: BUSINESS_TIMEZONE
         value: Asia/Kolkata
+      - key: LOG_LEVEL
+        value: info
       - key: OFFLINE_VISITS_ENABLED
         value: "false"
       - key: OFFLINE_EVIDENCE_ENABLED
         value: "false"
+      - key: OFFLINE_EVIDENCE_REQUIRES_REVIEW
+        value: "true"
