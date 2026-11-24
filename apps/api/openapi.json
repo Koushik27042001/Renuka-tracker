@@ -189,9 +189,16 @@
     "/api/v1/auth/refresh": {
       "post": {
         "summary": "Rotate the current refresh token",
+        "description": "For web requests with checkSession=true, a missing or expired session returns HTTP 200 with data.session set to null.",
         "parameters": [
           {
             "$ref": "#/components/parameters/AuthTransport"
+          },
+          {
+            "name": "checkSession",
+            "in": "query",
+            "description": "Return a signed-out result for a web session check.",
+            "schema": { "type": "boolean" }
           }
         ],
         "requestBody": {
@@ -230,7 +237,29 @@
         ],
         "responses": {
           "200": {
-            "$ref": "#/components/responses/Grant"
+            "description": "Refreshed credentials or a signed-out web session check",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/responses/Grant/content/application~1json/schema" },
+                    {
+                      "type": "object",
+                      "required": ["success", "message", "data"],
+                      "properties": {
+                        "success": { "const": true },
+                        "message": { "const": "Signed out" },
+                        "data": {
+                          "type": "object",
+                          "required": ["session"],
+                          "properties": { "session": { "type": "null" } }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           },
           "400": {
             "$ref": "#/components/responses/400"

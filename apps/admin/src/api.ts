@@ -31,7 +31,7 @@ export class ApiError extends Error {
 }
 
 let grant: Grant | null = null;
-let refreshFlight: Promise<Grant> | undefined;
+let refreshFlight: Promise<Grant | null> | undefined;
 let sessionVersion = 0;
 const listeners = new Set<(user: Admin | null) => void>();
 function setGrant(next: Grant | null) {
@@ -71,11 +71,14 @@ function authOptions(body?: unknown): RequestInit {
     body: body === undefined ? undefined : JSON.stringify(body),
   };
 }
-export function restoreSession(): Promise<Grant> {
+export function restoreSession(checkSession = false): Promise<Grant | null> {
   if (!refreshFlight) {
     const version = sessionVersion;
     const refresh = async () => {
-      const next = await data<Grant>(await send('/auth/refresh', authOptions()));
+      const result = await data<Grant | { session: null }>(
+        await send(checkSession ? '/auth/refresh?checkSession=true' : '/auth/refresh', authOptions()),
+      );
+      const next = 'session' in result ? null : result;
       if (version === sessionVersion) setGrant(next);
       return next;
     };

@@ -8,9 +8,12 @@ For a newly approved key, the operator can run the following from a secure termi
 keytool -genkeypair -v -keystore $companyKeystore -storetype PKCS12 -alias renuka-tracker -keyalg RSA -keysize 3072 -validity 10000
 ```
 
-Set `MOBILE_API_URL` to the approved HTTPS staging or production API origin and `MOBILE_APP_VERSION` to the approved semantic version. Set a higher `ANDROID_VERSION_CODE` for each distributed upgrade. Supply `ANDROID_SIGNING_STORE_FILE`, `ANDROID_SIGNING_STORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS`, and `ANDROID_SIGNING_KEY_PASSWORD` through the protected build environment.
+Export the Render API origin and release version into the shell before launching Metro or Gradle. The mobile app connects directly to Render. Set a higher `ANDROID_VERSION_CODE` for each distributed upgrade. Supply `ANDROID_SIGNING_STORE_FILE`, `ANDROID_SIGNING_STORE_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS`, and `ANDROID_SIGNING_KEY_PASSWORD` through the protected build environment.
 
 ```powershell
+$env:MOBILE_API_URL = 'https://renuka-tracker.onrender.com'
+$env:MOBILE_APP_VERSION = '1.0.0'
+$env:ANDROID_VERSION_CODE = '1'
 Push-Location apps/mobile/android
 .\gradlew.bat :app:assembleRelease --stacktrace
 $apk = Resolve-Path 'app/build/outputs/apk/release/app-release.apk'

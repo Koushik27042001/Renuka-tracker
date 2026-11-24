@@ -28,7 +28,7 @@ services:
       - key: JWT_ACCESS_SECRET
         sync: false
       - key: ADMIN_ORIGINS
-        sync: false
+        value: https://renuka-tracker-28trqb37m-koushik27042001s-projects.vercel.app
       - key: CLOUDINARY_URL
         sync: false
       - key: CLOUDINARY_FOLDER

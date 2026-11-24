@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useLocation } from 'react-router-dom';
 import { ApiError, restoreSession, subscribeSession } from './api';
 
-type User = Awaited<ReturnType<typeof restoreSession>>['user'];
+type User = NonNullable<Awaited<ReturnType<typeof restoreSession>>>['user'];
 const Session = createContext<User | null>(null);
 export const useSession = () => useContext(Session);
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -23,7 +23,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   function restore() {
     setLoading(true);
     setError(false);
-    void restoreSession()
+    void restoreSession(true)
       .catch((problem: unknown) => {
         if (!(problem instanceof ApiError && problem.status === 401)) setError(true);
       })

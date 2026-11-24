@@ -62,13 +62,22 @@ export function authController(auth: AuthService, config: Config) {
     },
     async refresh(req: Request, res: Response) {
       const mode = transport(req);
-      const raw = credential(req, mode, true);
-      if (!raw) throw unauthorized();
+      const allowSignedOut = mode === 'web' && req.query.checkSession === 'true';
+      const raw = credential(req, mode, !allowSignedOut);
+      if (!raw) {
+        success(res, 'Signed out', { session: null });
+        return;
+      }
       try {
         grant(res, mode, await auth.refresh(raw, mode, auditContext(req)));
       } catch (error) {
-        if (mode === 'web' && error instanceof AppError && error.status === 401)
+        if (mode === 'web' && error instanceof AppError && error.status === 401) {
           res.clearCookie(cookieName, cookie);
+          if (allowSignedOut) {
+            success(res, 'Signed out', { session: null });
+            return;
+          }
+        }
         throw error;
       }
     },
