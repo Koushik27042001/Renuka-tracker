@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: renuka-tracker-api
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build:api
+    startCommand: npm run start:api
+    preDeployCommand: npm run db:indexes -w @renuka/api
+    healthCheckPath: /api/health/ready
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: NODE_ENV
+        value: production
+      - key: MONGOMS_DISABLE_POSTINSTALL
+        value: "1"
+      - key: HOST
+        value: 0.0.0.0
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: TRUSTED_PROXY_CIDRS
+        sync: false
+      - key: ADMIN_ORIGINS
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: fieldforce/production/evidence
+      - key: BUSINESS_TIMEZONE
+        value: Asia/Kolkata
+      - key: OFFLINE_VISITS_ENABLED
+        value: "false"
+      - key: OFFLINE_EVIDENCE_ENABLED
+        value: "false"

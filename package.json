@@ -1,0 +1,28 @@
+{
+  "name": "renuka-tracker",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": "^22.13.0 || ^24.0.0 || ^25.0.0"
+  },
+  "scripts": {
+    "build": "npm run build -w @renuka/shared && npm run build -w @renuka/api && npm run build -w @renuka/admin",
+    "test": "npm run test:api",
+    "dev:api": "npm run build -w @renuka/shared && npm run dev -w @renuka/api",
+    "dev:admin": "npm run build -w @renuka/shared && npm run dev -w @renuka/admin",
+    "build:api": "npm run build -w @renuka/shared && npm run build -w @renuka/api",
+    "start:api": "npm run start -w @renuka/api",
+    "test:api": "npm run build -w @renuka/shared && npm run test -w @renuka/api",
+    "lint:api": "npm run lint -w @renuka/api",
+    "test:admin": "npm run build -w @renuka/shared && npm run test -w @renuka/admin",
+    "test:e2e": "npm run build:api && npm run test:e2e -w @renuka/admin",
+    "test:mobile": "npm run build -w @renuka/shared && npm run test -w @renuka/mobile"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  }
+}

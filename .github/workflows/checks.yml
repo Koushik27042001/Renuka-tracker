@@ -1,0 +1,25 @@
+name: Workspace checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint:api
+      - run: npm run format:check -w @renuka/api
+      - run: npm test
+      - run: npm run test:admin
+      - run: npm run test:mobile
+      - run: npm run build
+      - run: npm run typecheck -w @renuka/mobile
+      - name: Build mobile JavaScript bundle
+        run: |
+          mkdir -p apps/mobile/dist
+          npm exec -w @renuka/mobile -- react-native bundle --platform android --dev false --entry-file index.js --bundle-output dist/android.jsbundle --max-workers 2

@@ -1,0 +1,42 @@
+# Dependencies, caches, and generated output
+node_modules/
+.npm-cache/
+.vite/
+.turbo/
+.cache/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Local environment and deployment metadata
+.env
+.env.*
+!.env.example
+.vercel/
+.render/
+
+# Logs, temporary archives, and test artifacts
+*.log
+*.tgz
+test-results/
+playwright-report/
+playwright/.auth/
+
+# Local editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Native build outputs and signing material
+/apps/mobile/.bundle/
+/apps/mobile/android/local.properties
+*.apk
+*.aab
+*.ipa
+*.jks
+*.keystore
+!/apps/mobile/android/app/debug.keystore
+*.p12
+*.pfx

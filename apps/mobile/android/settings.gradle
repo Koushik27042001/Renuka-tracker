@@ -1,0 +1,9 @@
+pluginManagement { includeBuild("../../../node_modules/@react-native/gradle-plugin") }
+plugins { id("com.facebook.react.settings") }
+extensions.configure(com.facebook.react.ReactSettingsExtension) { extension ->
+    def cliFile = new File(settingsDir, '../../../node_modules/react-native/cli.js').canonicalPath
+    extension.autolinkLibrariesFromCommand(['node', cliFile, 'config'])
+}
+rootProject.name = 'RenukaTracker'
+include ':app'
+includeBuild('../../../node_modules/@react-native/gradle-plugin')
