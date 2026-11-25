@@ -210,7 +210,7 @@ export function EvidencePhoto({ id }: { id: string }) {
     <img
       className="evidence-photo"
       src={source}
-      alt="Submitted GPS selfie with permanent watermark"
+      alt="Submitted visit photo with permanent watermark"
     />
   ) : (
     <p role="status">Loading private evidence…</p>
@@ -285,7 +285,7 @@ export function FieldVisitsPage({ evidenceMode = false }: { evidenceMode?: boole
       <header className="page-heading">
         <div>
           <h1>{evidenceMode ? 'Visit evidence' : 'Field Visit Management'}</h1>
-          <p>Review employee-submitted field visits and GPS selfie evidence.</p>
+          <p>Review employee-submitted field visits and photo evidence.</p>
         </div>
         <div className="row-actions">
           <Link className="secondary" to={evidenceMode ? '/visits' : '/visits/evidence'}>
@@ -539,7 +539,10 @@ export function FieldVisitDetails() {
                     {evidence.latitude.toFixed(6)}, {evidence.longitude.toFixed(6)} · GPS ±
                     {Math.round(evidence.accuracy)} m
                   </p>
-                  <p>Captured {new Date(evidence.capturedAt).toLocaleString()}</p>
+                  <p>
+                    {evidence.source === 'gallery' ? 'Gallery photo attached' : 'Captured'}{' '}
+                    {new Date(evidence.capturedAt).toLocaleString()}
+                  </p>
                   <p>
                     {evidence.width} × {evidence.height} · {Math.ceil(evidence.size / 1024)} KB ·
                     Watermark v{evidence.watermarkVersion}

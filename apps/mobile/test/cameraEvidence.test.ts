@@ -3,6 +3,7 @@ import { captureVisitPhoto, cleanCapture } from '../src/cameraEvidence';
 const mock = vi.hoisted(() => ({
   state: { currentState: 'active' },
   camera: vi.fn(),
+  gallery: vi.fn(),
   GPS: vi.fn(),
   permission: vi.fn(),
   unlink: vi.fn(),
@@ -16,7 +17,10 @@ vi.mock('react-native', () => ({
     request: mock.permission,
   },
 }));
-vi.mock('react-native-image-picker', () => ({ launchCamera: mock.camera }));
+vi.mock('react-native-image-picker', () => ({
+  launchCamera: mock.camera,
+  launchImageLibrary: mock.gallery,
+}));
 vi.mock('react-native-blob-util', () => ({ default: { fs: { unlink: mock.unlink } } }));
 vi.mock('../src/foregroundLocation', () => ({ captureForegroundLocation: mock.GPS }));
 vi.mock('../src/requestId', () => ({ uniqueId: () => 'b75d50f4-b642-4aa0-a5e4-71123e32dd42' }));
@@ -25,6 +29,7 @@ const limits = { preferredAccuracy: 50, maximumAccuracy: 100, maximumAgeSeconds:
 beforeEach(() => {
   mock.state.currentState = 'active';
   mock.camera.mockReset();
+  mock.gallery.mockReset();
   mock.GPS.mockReset();
   mock.unlink.mockReset().mockResolvedValue(undefined);
   mock.permission.mockReset().mockResolvedValue('granted');
@@ -60,6 +65,21 @@ it('captures front camera evidence and one new GPS fix for each retake', async (
   );
   cleanCapture(first?.uri);
   expect(mock.unlink).toHaveBeenCalledWith('/capture-1.jpg');
+});
+it('selects gallery evidence with a fresh GPS fix and no camera permission', async () => {
+  mock.gallery.mockResolvedValueOnce({ didCancel: true }).mockResolvedValueOnce({
+    assets: [{ uri: 'file:///gallery.jpg', type: 'image/jpeg' }],
+  });
+  await expect(captureVisitPhoto(limits, undefined, 'gallery')).resolves.toBeUndefined();
+  expect(mock.GPS).not.toHaveBeenCalled();
+  mock.GPS.mockResolvedValueOnce({ latitude: 22, longitude: 88, accuracy: 15 });
+  await expect(captureVisitPhoto(limits, undefined, 'gallery')).resolves.toMatchObject({
+    uri: 'file:///gallery.jpg',
+    metadata: { source: 'gallery', location: { latitude: 22 } },
+  });
+  expect(mock.GPS).toHaveBeenCalledTimes(1);
+  expect(mock.permission).not.toHaveBeenCalled();
+  expect(mock.camera).not.toHaveBeenCalled();
 });
 it('leaves GPS untouched on camera cancellation and deletes temporary photos on GPS failure', async () => {
   mock.camera

@@ -25,6 +25,7 @@ const evidence = new Schema({
   address: String,
   addressProvider: String,
   mockLocation: Boolean,
+  source: { type: String, enum: ['gallery'] as const },
   originalSha256: String,
   delayed: Boolean,
   enhancedReview: Boolean,

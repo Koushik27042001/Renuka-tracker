@@ -129,6 +129,7 @@ export function serializeVisit(
             mimeType: 'image/jpeg',
             watermarkVersion: evidence.watermarkVersion,
             mockLocation: !!evidence.mockLocation,
+            ...(evidence.source === 'gallery' && { source: evidence.source }),
             verificationStatus: 'STORED',
           }
         : undefined,
@@ -332,6 +333,8 @@ export function visitService(
       const delay = now.getTime() - capture.getTime();
       const delayed = delay > 5 * 60_000;
       const offline = !!row.offlineCapturedAt;
+      if (offline && input.source === 'gallery')
+        throw new AppError(422, 'Offline visit evidence requires a camera selfie.');
       const shift = offline
         ? await offlineShift(models, config, actor.id, row.attendanceId.toString(), capture, now)
         : await activeShift(actor.id, now);
@@ -348,7 +351,9 @@ export function visitService(
       ) {
         throw new AppError(
           422,
-          'Capture a new selfie with a fresh, accurate GPS fix for this visit date.',
+          input.source === 'gallery'
+            ? 'Select the photo again to get a fresh, accurate GPS fix for this visit date.'
+            : 'Capture a new selfie with a fresh, accurate GPS fix for this visit date.',
         );
       }
       // Preserve the shift selected by the online or delayed-upload policy above.
@@ -405,7 +410,7 @@ export function visitService(
             Math.round(accuracy) +
             ' m',
           address.address ?? 'Address unavailable',
-          'Captured ' +
+          (input.source === 'gallery' ? 'Gallery photo attached ' : 'Captured ') +
             new Intl.DateTimeFormat('en-IN', {
               timeZone: config.BUSINESS_TIMEZONE,
               dateStyle: 'medium',
@@ -439,6 +444,7 @@ export function visitService(
                   address: address.address,
                   addressProvider: address.provider,
                   mockLocation: input.mockLocation ?? false,
+                  source: input.source,
                   originalSha256: input.originalSha256,
                   delayed,
                   enhancedReview: delayed || (offline && config.OFFLINE_EVIDENCE_REQUIRES_REVIEW),
@@ -504,7 +510,7 @@ export function visitService(
       if (!row) throw missing();
       if (row.status !== 'DRAFT') return serializeVisit(row);
       if (!row.evidence)
-        throw conflict('Store and review the watermarked selfie before submitting.');
+        throw conflict('Store and review the watermarked photo before submitting.');
       const shift = await activeShift(actor.id, new Date());
       if (!row.offlineCapturedAt && (!shift || !shift._id.equals(row.attendanceId)))
         throw conflict('Check in and submit the visit during its attendance session.');

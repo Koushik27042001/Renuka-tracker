@@ -73,7 +73,7 @@ export function EvidenceImage({ id, onLoaded }: { id: string; onLoaded?: () => v
       source={{ uri: image.data, cache: 'reload' }}
       resizeMode="contain"
       style={{ width: '100%', height: 360 }}
-      accessibilityLabel="Watermarked selfie evidence"
+      accessibilityLabel="Watermarked visit photo"
     />
   );
 }
@@ -287,11 +287,11 @@ export function VisitDraft({
       else query.setQueryData(['visit', id], updated.visit);
     });
   }
-  async function camera() {
+  async function openVisitPhoto() {
     if (!row || !shift.data) return;
     const validated = visitInput.safeParse({ ...form, visitDate: row.visitDate });
     if (!validated.success) {
-      setError('Check the visit details before opening the camera.');
+      setError('Check the visit details before adding a photo.');
       return;
     }
     const limits = shift.data.limits;
@@ -364,9 +364,9 @@ export function VisitDraft({
             <>
               {!!row.evidence && <EvidenceImage id={row.evidence.id} />}
               <Action
-                title={row.evidence ? 'Preview or retake selfie' : 'Capture GPS selfie'}
+                title={row.evidence ? 'Preview or replace photo' : 'Add visit photo'}
                 disabled={busy || !shift.data}
-                onPress={() => void camera()}
+                onPress={() => void openVisitPhoto()}
                 secondary
               />
               <Action
@@ -438,9 +438,9 @@ export function VisitCamera({
       if (mounted.current) setBusy(false);
     }
   }
-  async function take() {
+  async function take(source: 'camera' | 'gallery') {
     await act(async () => {
-      const photo = await captureVisitPhoto(limits, () => mounted.current);
+      const photo = await captureVisitPhoto(limits, () => mounted.current, source);
       if (!photo) return;
       cleanCapture(current.current?.uri);
       current.current = photo;
@@ -455,7 +455,7 @@ export function VisitCamera({
       form.append('image', {
         uri: capture.uri,
         type: capture.type,
-        name: 'selfie.jpg',
+        name: capture.type === 'image/png' ? 'visit-photo.png' : 'visit-photo.jpg',
       } as unknown as Blob);
       try {
         const result = await authenticated<{ visit: Visit }>('/visits/' + id + '/evidence', {
@@ -479,11 +479,11 @@ export function VisitCamera({
   const evidence = existing.data?.evidence;
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.title}>GPS selfie</Text>
+      <Text style={styles.title}>Visit photo</Text>
       <Text style={styles.muted}>
-        A selfie and one location reading are saved to this visit. Your authorized reviewers can see
-        them after submission. If an address service is configured, it receives the coordinates for
-        address lookup.
+        Take a selfie or choose a JPEG or PNG from your gallery. The app records your current location
+        when you add the photo and labels gallery uploads for reviewers. If an address service is
+        configured, it receives the coordinates for address lookup.
       </Text>
       {existing.error && (
         <Problem message={existing.error.message} retry={() => void existing.refetch()} />
@@ -493,16 +493,19 @@ export function VisitCamera({
       {evidence ? (
         <>
           <EvidenceImage id={evidence.id} />
+          {evidence.source === 'gallery' && <Text style={styles.muted}>Gallery upload</Text>}
           <Text style={styles.muted}>
             {evidence.address ?? 'Address unavailable'} · ±{Math.round(evidence.accuracy)} m
           </Text>
           <Action title="Use this evidence" disabled={busy} onPress={() => navigation.goBack()} />
           <Action
-            title="Remove and retake"
+            title="Remove and replace photo"
             disabled={busy}
             onPress={() =>
               void act(async () => {
-                await authenticated('/visits/' + id + '/evidence', { method: 'DELETE' });
+                await authenticated('/visits/' + id + '/evidence', {
+                  method: 'DELETE',
+                });
                 await existing.refetch();
               })
             }
@@ -516,21 +519,29 @@ export function VisitCamera({
               source={{ uri: capture.uri }}
               resizeMode="contain"
               style={{ width: '100%', height: 320 }}
-              accessibilityLabel="Captured selfie"
+              accessibilityLabel={
+                capture.metadata.source === 'gallery' ? 'Selected gallery photo' : 'Captured selfie'
+              }
             />
           )}
           {!!capture && (
             <Action
-              title="Process and preview watermark"
+              title="Upload and preview photo"
               disabled={busy}
               onPress={() => void upload()}
             />
           )}
           <Action
-            title={capture ? 'Retake selfie' : 'Take selfie'}
+            title={capture && !capture.metadata.source ? 'Retake selfie' : 'Take selfie'}
             disabled={busy || !existing.data}
-            onPress={() => void take()}
+            onPress={() => void take('camera')}
             secondary={!!capture}
+          />
+          <Action
+            title="Choose from gallery"
+            disabled={busy || !existing.data}
+            onPress={() => void take('gallery')}
+            secondary
           />
           {error && (
             <Action

@@ -20,6 +20,7 @@ export const evidenceInput = z.strictObject({
   capturedAt: z.iso.datetime(),
   key: z.uuid(),
   mockLocation: z.boolean().optional(),
+  source: z.literal('gallery').optional(),
   originalSha256: z
     .string()
     .regex(/^[a-f0-9]{64}$/)
@@ -44,6 +45,7 @@ export type VisitEvidence = {
   mimeType: 'image/jpeg';
   watermarkVersion: number;
   mockLocation: boolean;
+  source?: 'gallery';
   delayed?: boolean;
   enhancedReview?: boolean;
   syncDelaySeconds?: number;

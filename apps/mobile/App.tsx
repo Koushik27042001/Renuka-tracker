@@ -1,13 +1,14 @@
 import 'react-native-get-random-values';
 import { VisitCamera, VisitDetail, VisitDraft, VisitHistory } from './src/visits';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Text, TextInput, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MobileProfile, UpdateNotice, useReleasePolicy } from './src/release';
 import { OfflineQueue, useForegroundVisitSync } from './src/OfflineQueue';
+import { SignInLayout, signInStyles } from './src/SignInLayout';
 import {
   cachedEmployee,
   MobileApiError,
@@ -28,7 +29,9 @@ import {
 } from './src/attendanceScreens';
 
 const Stack = createNativeStackNavigator<AttendanceStack>();
-const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const client = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
 type Employee = Awaited<ReturnType<typeof loginEmployee>>;
 
 function SessionApp() {
@@ -91,45 +94,58 @@ function SessionApp() {
     );
   if (!employee)
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#f6f5fc' }}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
-          <Text style={styles.title}>Renuka Tracker</Text>
-          {restoring ? (
-            <ActivityIndicator accessibilityLabel="Restoring session" />
-          ) : restoreError ? (
-            <Problem message={restoreError} retry={() => void restore()} />
-          ) : (
-            <View style={styles.card}>
-              <Text style={styles.label}>Employee sign in</Text>
+      <SignInLayout>
+        {restoring ? (
+          <ActivityIndicator accessibilityLabel="Restoring session" />
+        ) : restoreError ? (
+          <Problem message={restoreError} retry={() => void restore()} />
+        ) : (
+          <View style={signInStyles.form}>
+            <Text accessibilityRole="header" style={styles.label}>
+              Employee sign in
+            </Text>
+            <View style={signInStyles.field}>
+              <Text style={signInStyles.fieldLabel}>Email or employee ID</Text>
               <TextInput
                 accessibilityLabel="Email or employee ID"
                 autoCapitalize="none"
+                autoCorrect={false}
                 autoComplete="username"
-                style={styles.input}
-                placeholder="Email or employee ID"
+                style={signInStyles.input}
+                placeholder="e.g. EMP0001"
+                placeholderTextColor="#625a78"
                 value={identifier}
                 onChangeText={setIdentifier}
               />
+            </View>
+            <View style={signInStyles.field}>
+              <Text style={signInStyles.fieldLabel}>Password</Text>
               <TextInput
                 accessibilityLabel="Password"
                 secureTextEntry
                 autoComplete="current-password"
                 maxLength={128}
-                style={styles.input}
-                placeholder="Password"
+                style={signInStyles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#625a78"
                 value={password}
                 onChangeText={setPassword}
-              />
-              {loginError && <Problem message={loginError} />}
-              <Action
-                title={entering ? 'Signing in…' : 'Sign in'}
-                disabled={entering || !identifier.trim() || !password}
-                onPress={() => void login()}
+                returnKeyType="go"
+                onSubmitEditing={() => void login()}
               />
             </View>
-          )}
-        </ScrollView>
-      </SafeAreaView>
+            <Text style={styles.muted}>
+              First time? Use the activation link from your administrator to set your password.
+            </Text>
+            {loginError && <Problem message={loginError} />}
+            <Action
+              title={entering ? 'Signing in…' : 'Sign in'}
+              disabled={entering || !identifier.trim() || !password}
+              onPress={() => void login()}
+            />
+          </View>
+        )}
+      </SignInLayout>
     );
   return (
     <NavigationContainer>
@@ -171,7 +187,7 @@ function SessionApp() {
         <Stack.Screen
           name="VisitCamera"
           component={VisitCamera}
-          options={{ title: 'GPS selfie' }}
+          options={{ title: 'Visit photo' }}
         />
         <Stack.Screen
           name="VisitDetail"
