@@ -108,7 +108,7 @@ jobs:
           fi
           printf '%s\n' "${expected_cert%% *}" > "$RUNNER_TEMP/renuka-signing-cert.sha256"
           chmod +x gradlew
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --console=plain --stacktrace
 
       - name: Verify APK and prepare artifact
         run: |

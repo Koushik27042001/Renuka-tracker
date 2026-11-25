@@ -110,6 +110,15 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode releaseCode ? releaseCode.toInteger() : 1
         versionName releaseVersion ?: "1.0.0"
+
+        externalNativeBuild {
+            cmake {
+                // Ninja runs independently of Gradle's worker limit.
+                arguments "-DCMAKE_JOB_POOLS=renuka_native=2",
+                          "-DCMAKE_JOB_POOL_COMPILE=renuka_native",
+                          "-DCMAKE_JOB_POOL_LINK=renuka_native"
+            }
+        }
     }
     signingConfigs {
         release {
