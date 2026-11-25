@@ -1,0 +1,148 @@
+name: Android APK Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      MOBILE_API_URL: ${{ secrets.MOBILE_API_URL }}
+      MOBILE_APP_VERSION: ${{ secrets.MOBILE_APP_VERSION }}
+      ANDROID_VERSION_CODE: ${{ secrets.ANDROID_VERSION_CODE }}
+      ANDROID_BUILD_TOOLS: '36.0.0'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Validate mobile build settings
+        run: |
+          node --input-type=module <<'NODE'
+          const { MOBILE_API_URL, MOBILE_APP_VERSION, ANDROID_VERSION_CODE } = process.env;
+          const origin = URL.parse(MOBILE_API_URL);
+          if (!origin || origin.protocol !== 'https:' || origin.origin !== MOBILE_API_URL) {
+            throw new Error('Set MOBILE_API_URL to the deployed HTTPS API origin with no trailing slash or path.');
+          }
+          if (!/^(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){2}$/.test(MOBILE_APP_VERSION)) {
+            throw new Error('Set MOBILE_APP_VERSION to a version such as 1.0.0.');
+          }
+          if (!/^[1-9][0-9]{0,8}$/.test(ANDROID_VERSION_CODE)) {
+            throw new Error('Set ANDROID_VERSION_CODE to a positive integer with at most nine digits.');
+          }
+          NODE
+
+      - name: Install workspace dependencies
+        env:
+          MONGOMS_DISABLE_POSTINSTALL: '1'
+        run: npm ci --include=dev
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: false
+
+      - name: Install Android SDK and native toolchain
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;$ANDROID_BUILD_TOOLS" "ndk;27.1.12297006" "cmake;3.22.1"
+
+      - name: Validate Gradle wrapper and configure caching
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          validate-wrappers: true
+
+      - name: Build shared package and type-check mobile
+        run: |
+          npm run build -w @renuka/shared
+          npm run typecheck -w @renuka/mobile
+
+      - name: Run mobile unit tests
+        run: npm run test -w @renuka/mobile
+
+      - name: Build signed standalone APK
+        working-directory: apps/mobile/android
+        env:
+          ANDROID_SIGNING_STORE_BASE64: ${{ secrets.ANDROID_SIGNING_STORE_BASE64 }}
+          ANDROID_SIGNING_STORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}
+          ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          for key in ANDROID_SIGNING_STORE_BASE64 ANDROID_SIGNING_STORE_PASSWORD ANDROID_SIGNING_KEY_ALIAS ANDROID_SIGNING_KEY_PASSWORD; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing repository secret $key. See docs/deployment/github-actions-android-build.md."
+              exit 1
+            fi
+          done
+          umask 077
+          export ANDROID_SIGNING_STORE_FILE
+          ANDROID_SIGNING_STORE_FILE=$(mktemp "$RUNNER_TEMP/renuka-signing.XXXXXXXX")
+          trap 'rm -f -- "$ANDROID_SIGNING_STORE_FILE"' EXIT
+          if ! printf '%s' "$ANDROID_SIGNING_STORE_BASE64" | base64 --decode > "$ANDROID_SIGNING_STORE_FILE"; then
+            echo "::error::ANDROID_SIGNING_STORE_BASE64 must contain the base64-encoded keystore."
+            exit 1
+          fi
+          unset ANDROID_SIGNING_STORE_BASE64
+          expected_cert=$(keytool -exportcert -keystore "$ANDROID_SIGNING_STORE_FILE" \
+            -storepass:env ANDROID_SIGNING_STORE_PASSWORD -alias "$ANDROID_SIGNING_KEY_ALIAS" | sha256sum)
+          debug_cert=$(keytool -exportcert -keystore app/debug.keystore -storepass android -alias androiddebugkey | sha256sum)
+          if [[ "$expected_cert" == "$debug_cert" ]]; then
+            echo '::error::The release signing key matches the repository debug key.'
+            exit 1
+          fi
+          printf '%s\n' "${expected_cert%% *}" > "$RUNNER_TEMP/renuka-signing-cert.sha256"
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Verify APK and prepare artifact
+        run: |
+          apk=apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if [[ ! -s "$apk" ]]; then
+            echo "::error::Signed release APK missing at $apk."
+            exit 1
+          fi
+          tools="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS"
+          signature=$("$tools/apksigner" verify --verbose --print-certs "$apk")
+          actual_cert=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' <<< "$signature")
+          expected_cert=$(cat "$RUNNER_TEMP/renuka-signing-cert.sha256")
+          if [[ "$actual_cert" != "$expected_cert" ]]; then
+            echo '::error::APK signer does not match the configured signing key.'
+            exit 1
+          fi
+          unzip -t "$apk" assets/index.android.bundle
+          badging=$("$tools/aapt" dump badging "$apk")
+          if ! grep -Fq "package: name='com.renukatracker' versionCode='$ANDROID_VERSION_CODE' versionName='$MOBILE_APP_VERSION'" <<< "$badging" \
+            || grep -q '^application-debuggable' <<< "$badging" \
+            || grep -Fq 'android.permission.ACCESS_BACKGROUND_LOCATION' <<< "$badging"; then
+            echo '::error::APK package, version, or release manifest verification failed.'
+            exit 1
+          fi
+          mkdir -p android-artifact
+          cp "$apk" android-artifact/app-release.apk
+          cd android-artifact
+          sha256sum app-release.apk > app-release.apk.sha256
+          printf 'Application version: %s\nAndroid version code: %s\nGit commit: %s\nGit ref: %s\n' \
+            "$MOBILE_APP_VERSION" "$ANDROID_VERSION_CODE" "$GITHUB_SHA" "$GITHUB_REF" > build-info.txt
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: renuka-fieldforce-android-apk
+          path: android-artifact/
+          if-no-files-found: error
