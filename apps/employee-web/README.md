@@ -30,6 +30,8 @@ Use `npm exec -w @renuka/employee-web -- vite preview` to verify the generated s
 3. The tracked same-origin `/api` rewrite targets the existing Render service; update its destination only if the service hostname changes. Browser login sends the `employee-web` transport and uses a separate HttpOnly cookie. Verify the production response has a secure `__Host-renuka_employee_refresh` cookie on the Vercel origin and the access token only in memory.
 4. Administrators still issue activation and reset links through the existing admin workflow. Employees can redeem the original link and then sign in here. This app also supports `/account/setup#token=...` with the same one-time token. Share links through the organization's approved channel.
 
+If `POST /api/v1/auth/refresh?checkSession=true` returns 403, open the employee app and copy its origin from the address bar, for example `https://your-employee-project.vercel.app`. Add that exact scheme and hostname to `EMPLOYEE_WEB_ORIGINS` on the existing Render service, then deploy. For the admin app use `ADMIN_ORIGINS`. Use the stable Vercel production domain for everyday access, since preview and deployment URLs can have different origins. A signed-out request from an approved origin should return HTTP 200 with `data.session` equal to `null`.
+
 ## Browser workflows and limits
 
 - Workbox precaches only the public application shell, icons, and local fonts. There is no runtime API, private photo or credential cache. A service worker update requires confirmation and is disabled on data-entry, attendance-submission and capture routes.

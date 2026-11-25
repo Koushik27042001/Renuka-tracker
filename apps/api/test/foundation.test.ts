@@ -98,6 +98,12 @@ describe('Phase 2 backend', () => {
         .set(header, 'employee-web');
     await webPost('/login', origin).send(credentials).expect(403);
     await webPost('/login', 'https://other.example.test').send(credentials).expect(403);
+    await webPost('/refresh?checkSession=true', origin).send({}).expect(403);
+    await webPost('/refresh?checkSession=true')
+      .set('Forwarded', 'for=192.0.2.10;proto=https')
+      .send({})
+      .expect(200)
+      .expect(({ body }) => expect(body.data.session).toBeNull());
     const login = await webPost('/login').send(credentials).expect(200);
     expect(login.body.data.user.role).toBe('EMPLOYEE');
     expect(login.body.data.refreshToken).toBeUndefined();

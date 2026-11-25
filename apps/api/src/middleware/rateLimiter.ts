@@ -8,7 +8,8 @@ export function limiter(limit: number, windowMs: number) {
     standardHeaders: 'draft-8',
     legacyHeaders: false,
     handler: (req, res) => sendError(req, res, new AppError(429, 'Too many requests')),
-    // An untrusted forwarding header is ignored by Express when proxies are disabled.
-    validate: { xForwardedForHeader: false },
+    // Keep Express's default IP key and the deployment's explicit proxy trust configuration.
+    // Express does not use the standardized Forwarded header to resolve req.ip.
+    validate: { xForwardedForHeader: false, forwardedHeader: false },
   });
 }

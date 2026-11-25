@@ -29,6 +29,8 @@ services:
         sync: false
       - key: ADMIN_ORIGINS
         value: https://renuka-tracker-28trqb37m-koushik27042001s-projects.vercel.app
+      - key: EMPLOYEE_WEB_ORIGINS
+        sync: false
       - key: CLOUDINARY_URL
         sync: false
       - key: CLOUDINARY_FOLDER

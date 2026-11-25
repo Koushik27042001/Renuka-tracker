@@ -33,14 +33,20 @@ export function authController(auth: AuthService, config: Config) {
     const mode = transportSchema.safeParse(req.get('x-auth-transport'));
     if (!mode.success) throw new AppError(400, 'Unsupported X-Auth-Transport');
     const origin = req.get('origin');
-    const origins =
-      mode.data === 'employee-web' ? config.EMPLOYEE_WEB_ORIGINS : config.ADMIN_ORIGINS;
-    if (
-      mode.data !== 'mobile'
-        ? !origin || !origins.includes(origin)
-        : origin !== undefined || req.get('cookie') !== undefined
-    ) {
-      throw new AppError(403, 'Authentication transport is not permitted');
+    if (mode.data === 'mobile') {
+      if (origin !== undefined || req.get('cookie') !== undefined)
+        throw new AppError(403, 'Authentication transport is not permitted');
+    } else {
+      const employee = mode.data === 'employee-web';
+      const origins = employee ? config.EMPLOYEE_WEB_ORIGINS : config.ADMIN_ORIGINS;
+      if (!origin || !origins.includes(origin)) {
+        throw new AppError(
+          403,
+          employee
+            ? 'This website is not configured for employee sign-in. Contact your administrator.'
+            : 'This website is not configured for admin sign-in. Contact your administrator.',
+        );
+      }
     }
     return mode.data;
   }
