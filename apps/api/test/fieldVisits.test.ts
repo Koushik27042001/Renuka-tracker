@@ -160,9 +160,12 @@ it('renders permanent high-contrast watermark pixels, wraps long addresses, and 
 });
 
 it('uses configured geocoding, caches successful responses and falls back without inventing addresses', async () => {
+  const fullAddress = '12 Example Road, ' + 'Detailed locality, '.repeat(20) + '700001, India';
   const lookup = vi
     .fn()
-    .mockResolvedValueOnce(new Response(JSON.stringify({ display_name: '  Kolkata   District  ' })))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ display_name: '  ' + fullAddress + '  ' })),
+    )
     .mockRejectedValueOnce(new Error('Offline'));
   const now = Date.now();
   const clock = vi.spyOn(Date, 'now').mockReturnValue(now);
@@ -174,13 +177,16 @@ it('uses configured geocoding, caches successful responses and falls back withou
       GEOCODING_USER_AGENT: 'FieldForce test client',
     });
     await expect(reverse(22.57, 88.36, 15)).resolves.toEqual({
-      address: 'Kolkata District',
+      address: fullAddress,
       provider: 'geo.example.test',
     });
-    await expect(reverse(22.57, 88.36, 15)).resolves.toMatchObject({ address: 'Kolkata District' });
+    await expect(reverse(22.57, 88.36, 15)).resolves.toMatchObject({ address: fullAddress });
     expect(lookup).toHaveBeenCalledTimes(1);
+    expect(lookup.mock.calls[0][0].searchParams.get('zoom')).toBe('18');
+    expect(lookup.mock.calls[0][0].searchParams.get('addressdetails')).toBe('1');
     clock.mockReturnValue(now + 1200);
     await expect(reverse(22.58, 88.36, 55)).resolves.toEqual({ address: null, provider: null });
+    expect(lookup.mock.calls[1][0].searchParams.get('zoom')).toBe('14');
   } finally {
     vi.unstubAllGlobals();
     clock.mockRestore();

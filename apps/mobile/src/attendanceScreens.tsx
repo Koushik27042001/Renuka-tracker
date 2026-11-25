@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { colors } from './theme';
 import {
   ActivityIndicator,
   AppState,
@@ -47,11 +48,13 @@ export function Action({
   onPress,
   disabled,
   secondary,
+  attendance,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
+  attendance?: boolean;
 }) {
   return (
     <Pressable
@@ -59,9 +62,43 @@ export function Action({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[styles.button, secondary && styles.secondary, disabled && styles.disabled]}
+      style={[
+        styles.button,
+        secondary && styles.secondary,
+        attendance && styles.attendanceButton,
+        disabled && styles.disabled,
+      ]}
     >
-      <Text style={[styles.buttonText, secondary && styles.secondaryText]}>{title}</Text>
+      <Text
+        style={[
+          styles.buttonText,
+          secondary && styles.secondaryText,
+          disabled && styles.disabledText,
+        ]}
+      >
+        {title}
+      </Text>
+    </Pressable>
+  );
+}
+
+function DashboardLink({
+  title,
+  detail,
+  onPress,
+}: {
+  title: string;
+  detail: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      style={({ pressed }) => [styles.dashboardLink, pressed && styles.secondary]}
+    >
+      <Text style={styles.label}>{title}</Text>
+      <Text style={styles.muted}>{detail}</Text>
     </Pressable>
   );
 }
@@ -119,9 +156,11 @@ export function AttendanceHome({
   navigation,
   employee,
   onLogout,
+  updateNotice,
 }: NativeStackScreenProps<AttendanceStack, 'Attendance'> & {
   employee: { id: string; fullName: string; employeeCode: string };
   onLogout: () => Promise<void>;
+  updateNotice?: ReactNode;
 }) {
   const [logoutError, setLogoutError] = useState('');
   const [signingOut, setSigningOut] = useState(false);
@@ -163,10 +202,17 @@ export function AttendanceHome({
         <RefreshControl refreshing={current.isRefetching} onRefresh={() => void refetch()} />
       }
     >
-      <Text style={styles.title}>{employee.fullName}</Text>
-      <Text style={styles.muted}>
-        {employee.employeeCode} · {data?.attendanceDate ?? 'Attendance'}
-      </Text>
+      <View style={styles.hero}>
+        <View style={styles.heroAccent} />
+        <Text accessibilityRole="header" style={styles.heroTitle}>
+          {employee.fullName}
+        </Text>
+        <Text style={styles.heroMeta}>
+          {employee.employeeCode}
+          {data?.attendanceDate ? ' · ' + data.attendanceDate : ''}
+        </Text>
+      </View>
+      {updateNotice}
       {current.isPending ? (
         <ActivityIndicator accessibilityLabel="Loading attendance" />
       ) : current.error ? (
@@ -193,33 +239,45 @@ export function AttendanceHome({
             {checkedIn && row ? (
               <Action
                 title="Check out"
+                attendance
                 onPress={() => navigation.navigate('CheckOut', { limits: data.limits, id: row.id })}
               />
             ) : (
               <Action
                 title="Check in"
+                attendance
                 onPress={() => navigation.navigate('CheckIn', { limits: data.limits })}
               />
             )}
           </View>
         )
       )}
+      <View style={styles.dashboardLinks}>
+        <DashboardLink
+          title="Field visits"
+          detail="Start or review a visit"
+          onPress={() => navigation.navigate('Visits')}
+        />
+        <DashboardLink
+          title="Attendance history"
+          detail="Review your shifts"
+          onPress={() => navigation.navigate('History')}
+        />
+        <DashboardLink
+          title="Visit sync queue"
+          detail="Check pending uploads"
+          onPress={() => navigation.navigate('OfflineQueue')}
+        />
+        <DashboardLink
+          title="Profile and settings"
+          detail="Manage your app and account"
+          onPress={() => navigation.navigate('Profile')}
+        />
+      </View>
       <MobileVisitSummary
         owner={employee.id}
         open={(id) => navigation.navigate('VisitDetail', { id })}
       />
-      <Action title="Field visits" secondary onPress={() => navigation.navigate('Visits')} />
-      <Action
-        title="Profile and settings"
-        secondary
-        onPress={() => navigation.navigate('Profile')}
-      />
-      <Action
-        title="Visit sync queue"
-        secondary
-        onPress={() => navigation.navigate('OfflineQueue')}
-      />
-      <Action title="Attendance history" secondary onPress={() => navigation.navigate('History')} />
       {logoutError && <Problem message={logoutError} />}
       <Action
         title={signingOut ? 'Signing out…' : 'Sign out'}
@@ -343,6 +401,7 @@ export function ShiftScreen(
           {!!fix && (
             <Action
               title={pending ? 'Retry submission' : 'Confirm ' + title}
+              attendance
               onPress={() => void submit()}
               disabled={busy}
             />
@@ -519,31 +578,56 @@ export function AttendanceDetails({ route }: NativeStackScreenProps<AttendanceSt
   );
 }
 export const styles = StyleSheet.create({
-  page: { flexGrow: 1, gap: 14, padding: 20, backgroundColor: '#f6f5fc' },
-  title: { fontSize: 29, fontWeight: '700', color: '#252047' },
-  label: { fontSize: 18, fontWeight: '600', color: '#252047' },
-  muted: { fontSize: 15, color: '#544f70', lineHeight: 22 },
-  card: { padding: 17, borderRadius: 15, backgroundColor: 'white', gap: 10 },
-  timer: { fontSize: 34, color: '#4e37af', fontVariant: ['tabular-nums'], fontWeight: '700' },
+  page: { flexGrow: 1, gap: 14, padding: 20, backgroundColor: colors.ivory },
+  title: { fontSize: 29, fontWeight: '700', color: colors.forest },
+  label: { fontSize: 18, fontWeight: '600', color: colors.forest },
+  muted: { fontSize: 15, color: colors.muted, lineHeight: 22 },
+  card: {
+    padding: 17,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    gap: 10,
+  },
+  hero: { padding: 22, borderRadius: 20, backgroundColor: colors.forest, gap: 6 },
+  heroAccent: { width: 32, height: 2, backgroundColor: colors.gold, marginBottom: 6 },
+  heroTitle: { color: colors.white, fontFamily: 'serif', fontSize: 29, fontWeight: '700' },
+  heroMeta: { color: colors.sand, fontSize: 15, lineHeight: 22 },
+  dashboardLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  dashboardLink: {
+    flexGrow: 1,
+    flexBasis: '44%',
+    minWidth: 132,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.white,
+    gap: 5,
+  },
+  timer: { fontSize: 34, color: colors.forest, fontVariant: ['tabular-nums'], fontWeight: '700' },
   button: {
     padding: 12,
     minHeight: 48,
-    backgroundColor: '#5740bc',
+    backgroundColor: colors.hunter,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonText: { color: 'white', fontSize: 16, fontWeight: '600' },
-  secondary: { backgroundColor: '#eae4fb' },
-  secondaryText: { color: '#3f2a91' },
-  disabled: { opacity: 0.5 },
-  warning: { backgroundColor: '#fce9eb', padding: 12, borderRadius: 10, gap: 8 },
-  error: { color: '#812039', fontSize: 15 },
+  buttonText: { color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  secondary: { backgroundColor: colors.greenWash },
+  attendanceButton: { backgroundColor: colors.rust },
+  secondaryText: { color: colors.hunter },
+  disabled: { backgroundColor: colors.driedGreen },
+  disabledText: { color: colors.muted },
+  warning: { backgroundColor: colors.warning, padding: 12, borderRadius: 10, gap: 8 },
+  error: { color: colors.error, fontSize: 15 },
   input: {
     borderWidth: 1,
-    borderColor: '#dcd6ee',
+    borderColor: colors.fieldBorder,
     borderRadius: 9,
-    color: '#252047',
+    color: colors.forest,
     padding: 12,
     minHeight: 46,
   },

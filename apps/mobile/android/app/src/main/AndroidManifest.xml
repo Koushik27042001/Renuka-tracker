@@ -8,8 +8,8 @@
     <application
       android:name=".MainApplication"
       android:label="@string/app_name"
-      android:icon="@mipmap/renuka_launcher"
-      android:roundIcon="@mipmap/renuka_launcher"
+      android:icon="@mipmap/rss_launcher"
+      android:roundIcon="@mipmap/rss_launcher"
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"

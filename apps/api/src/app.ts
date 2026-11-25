@@ -70,7 +70,12 @@ export function createApp(dependencies: {
   app.use(helmet());
   app.use(
     cors({
-      origin: (origin, done) => done(null, !!origin && config.ADMIN_ORIGINS.includes(origin)),
+      origin: (origin, done) =>
+        done(
+          null,
+          !!origin &&
+            (config.ADMIN_ORIGINS.includes(origin) || config.EMPLOYEE_WEB_ORIGINS.includes(origin)),
+        ),
       credentials: true,
       methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Authorization', 'Content-Type', 'X-Auth-Transport'],

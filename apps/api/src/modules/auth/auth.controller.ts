@@ -19,7 +19,9 @@ export function success(res: Response, message: string, data: object = {}) {
 }
 
 export function authController(auth: AuthService, config: Config) {
-  const cookieName = config.COOKIE_SECURE ? '__Host-renuka_refresh' : 'renuka_refresh';
+  const cookieName = (mode: Transport) =>
+    (config.COOKIE_SECURE ? '__Host-' : '') +
+    (mode === 'employee-web' ? 'renuka_employee_refresh' : 'renuka_refresh');
   const cookie: CookieOptions = {
     secure: config.COOKIE_SECURE,
     httpOnly: true,
@@ -29,11 +31,13 @@ export function authController(auth: AuthService, config: Config) {
 
   function transport(req: Request) {
     const mode = transportSchema.safeParse(req.get('x-auth-transport'));
-    if (!mode.success) throw new AppError(400, 'X-Auth-Transport must be web or mobile');
+    if (!mode.success) throw new AppError(400, 'Unsupported X-Auth-Transport');
     const origin = req.get('origin');
+    const origins =
+      mode.data === 'employee-web' ? config.EMPLOYEE_WEB_ORIGINS : config.ADMIN_ORIGINS;
     if (
-      mode.data === 'web'
-        ? !origin || !config.ADMIN_ORIGINS.includes(origin)
+      mode.data !== 'mobile'
+        ? !origin || !origins.includes(origin)
         : origin !== undefined || req.get('cookie') !== undefined
     ) {
       throw new AppError(403, 'Authentication transport is not permitted');
@@ -44,15 +48,16 @@ export function authController(auth: AuthService, config: Config) {
   function credential(req: Request, mode: Transport, required: boolean) {
     if (mode === 'mobile') return parse(mobileRefresh, req.body).refreshToken;
     parse(emptyBody, req.body ?? {});
-    const result = rawRefreshSchema.safeParse(req.cookies[cookieName]);
+    const result = rawRefreshSchema.safeParse(req.cookies[cookieName(mode)]);
     if (result.success) return result.data;
     if (required) throw unauthorized();
   }
 
   function grant(res: Response, mode: Transport, data: Awaited<ReturnType<AuthService['login']>>) {
     const { refreshToken, expiresAt, ...publicData } = data;
-    if (mode === 'web') res.cookie(cookieName, refreshToken, { ...cookie, expires: expiresAt });
-    success(res, 'Authenticated', mode === 'web' ? publicData : { ...publicData, refreshToken });
+    if (mode !== 'mobile')
+      res.cookie(cookieName(mode), refreshToken, { ...cookie, expires: expiresAt });
+    success(res, 'Authenticated', mode !== 'mobile' ? publicData : { ...publicData, refreshToken });
   }
 
   return {
@@ -62,7 +67,7 @@ export function authController(auth: AuthService, config: Config) {
     },
     async refresh(req: Request, res: Response) {
       const mode = transport(req);
-      const allowSignedOut = mode === 'web' && req.query.checkSession === 'true';
+      const allowSignedOut = mode !== 'mobile' && req.query.checkSession === 'true';
       const raw = credential(req, mode, !allowSignedOut);
       if (!raw) {
         success(res, 'Signed out', { session: null });
@@ -71,8 +76,8 @@ export function authController(auth: AuthService, config: Config) {
       try {
         grant(res, mode, await auth.refresh(raw, mode, auditContext(req)));
       } catch (error) {
-        if (mode === 'web' && error instanceof AppError && error.status === 401) {
-          res.clearCookie(cookieName, cookie);
+        if (mode !== 'mobile' && error instanceof AppError && error.status === 401) {
+          res.clearCookie(cookieName(mode), cookie);
           if (allowSignedOut) {
             success(res, 'Signed out', { session: null });
             return;
@@ -84,14 +89,14 @@ export function authController(auth: AuthService, config: Config) {
     async logout(req: Request, res: Response) {
       const mode = transport(req);
       await auth.logout(credential(req, mode, false), mode, auditContext(req));
-      if (mode === 'web') res.clearCookie(cookieName, cookie);
+      if (mode !== 'mobile') res.clearCookie(cookieName(mode), cookie);
       success(res, 'Signed out');
     },
     async logoutAll(req: Request, res: Response) {
       const mode = transport(req);
       parse(emptyBody, req.body ?? {});
       await auth.logoutAll(requireAuth(req), auditContext(req));
-      if (mode === 'web') res.clearCookie(cookieName, cookie);
+      if (mode !== 'mobile') res.clearCookie(cookieName(mode), cookie);
       success(res, 'Signed out on all devices');
     },
     async me(req: Request, res: Response) {

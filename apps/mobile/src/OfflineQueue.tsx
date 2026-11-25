@@ -368,7 +368,11 @@ export function OfflineQueue({
           )}
           {preview?.localId === row.id && preview.visit.evidence && (
             <>
-              <EvidenceImage id={preview.visit.evidence.id} onLoaded={() => setLoaded(true)} />
+              <EvidenceImage
+                key={preview.visit.evidence.id}
+                evidence={preview.visit.evidence}
+                onLoaded={() => setLoaded(true)}
+              />
               <Action
                 title="Submit visit"
                 disabled={!online || busy || !loaded}

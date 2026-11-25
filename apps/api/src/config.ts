@@ -55,6 +55,7 @@ const schema = z.object({
     .default('http://localhost:5173')
     .transform(csv)
     .pipe(z.array(origin).min(1)),
+  EMPLOYEE_WEB_ORIGINS: z.string().default('').transform(csv).pipe(z.array(origin)),
   TRUSTED_PROXY_CIDRS: z.string().default('').transform(csv).pipe(z.array(proxy)),
   BUSINESS_TIMEZONE: z
     .string()
@@ -73,7 +74,7 @@ const schema = z.object({
   OFFLINE_SYNC_MAX_RETRIES: bounded(8, 1, 12),
   OFFLINE_EVIDENCE_MAX_DELAY_HOURS: bounded(24, 1, 48),
 
-  ATTENDANCE_PREFERRED_ACCURACY: bounded(50, 1, 500),
+  ATTENDANCE_PREFERRED_ACCURACY: bounded(20, 1, 500),
   ATTENDANCE_MAX_ACCURACY: bounded(100, 1, 1000),
   ATTENDANCE_MAX_LOCATION_AGE_SECONDS: bounded(30, 5, 120),
   ATTENDANCE_MAX_SHIFT_HOURS: bounded(24, 12, 48),
@@ -131,6 +132,7 @@ export function readConfig(env: NodeJS.ProcessEnv) {
     GEOCODING_USER_AGENT: env.GEOCODING_USER_AGENT || undefined,
     GEOCODING_API_KEY: env.GEOCODING_API_KEY || undefined,
     ADMIN_ORIGINS: env.ADMIN_ORIGINS ?? env.ADMIN_WEB_ORIGIN,
+    EMPLOYEE_WEB_ORIGINS: env.EMPLOYEE_WEB_ORIGINS,
   });
   if (!result.success) {
     const fields = result.error.issues.map((issue) => issue.path.join('.')).join(', ');
@@ -170,7 +172,10 @@ export function readConfig(env: NodeJS.ProcessEnv) {
   const secure = config.COOKIE_SECURE ?? config.NODE_ENV === 'production';
   if (
     config.NODE_ENV === 'production' &&
-    (!secure || config.ADMIN_ORIGINS.some((value) => !value.startsWith('https://')))
+    (!secure ||
+      [...config.ADMIN_ORIGINS, ...config.EMPLOYEE_WEB_ORIGINS].some(
+        (value) => !value.startsWith('https://'),
+      ))
   ) {
     throw new Error('Production requires secure cookies and HTTPS admin origins');
   }

@@ -409,7 +409,9 @@ export function visitService(
             ' · GPS ±' +
             Math.round(accuracy) +
             ' m',
-          address.address ?? 'Address unavailable',
+          address.address
+            ? (accuracy > 50 ? 'Approximate area: ' : 'Mapped address: ') + address.address
+            : 'Address unavailable',
           (input.source === 'gallery' ? 'Gallery photo attached ' : 'Captured ') +
             new Intl.DateTimeFormat('en-IN', {
               timeZone: config.BUSINESS_TIMEZONE,

@@ -1,4 +1,5 @@
 ﻿import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { colors } from './theme';
 import {
   AccessibilityInfo,
   Animated,
@@ -50,7 +51,11 @@ export function SignInLayout({ children }: { children: ReactNode }) {
         style={signInStyles.keyboard}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={signInStyles.page}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={signInStyles.page}
+        >
           <View style={signInStyles.hero}>
             <View pointerEvents="none" style={signInStyles.outerRing} />
             <View pointerEvents="none" style={signInStyles.innerRing} />
@@ -79,7 +84,7 @@ export function SignInLayout({ children }: { children: ReactNode }) {
               </View>
             </Animated.View>
             <Text accessibilityRole="header" style={signInStyles.title}>
-              Renuka Tracker
+              Rss hrms desk
             </Text>
             <Text style={signInStyles.subtitle}>
               Check in for your shift, log field visits, and review your attendance.
@@ -93,20 +98,21 @@ export function SignInLayout({ children }: { children: ReactNode }) {
 }
 
 export const signInStyles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#f6f5fc' },
+  screen: { flex: 1, backgroundColor: colors.ivory },
   keyboard: { flex: 1 },
   page: {
     flexGrow: 1,
     justifyContent: 'center',
     gap: 16,
-    padding: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
     width: '100%',
     maxWidth: 540,
     alignSelf: 'center',
   },
   hero: {
     overflow: 'hidden',
-    backgroundColor: '#302264',
+    backgroundColor: colors.forest,
     borderRadius: 22,
     padding: 24,
     gap: 10,
@@ -119,7 +125,7 @@ export const signInStyles = StyleSheet.create({
     top: -100,
     borderWidth: 1,
     borderRadius: 115,
-    borderColor: '#67529e',
+    borderColor: colors.gold,
   },
   innerRing: {
     position: 'absolute',
@@ -129,7 +135,7 @@ export const signInStyles = StyleSheet.create({
     top: -70,
     borderWidth: 1,
     borderRadius: 85,
-    borderColor: '#67529e',
+    borderColor: colors.gold,
   },
   icon: {
     width: 52,
@@ -137,31 +143,40 @@ export const signInStyles = StyleSheet.create({
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#eae4fb',
+    backgroundColor: colors.greenWash,
   },
   monogram: {
-    color: '#3f2a91',
+    color: colors.hunter,
     fontSize: 28,
     fontWeight: '800',
     includeFontPadding: false,
   },
-  title: { color: '#fff', fontSize: 29, fontWeight: '700' },
-  subtitle: { color: '#ece7fa', fontSize: 15, lineHeight: 22 },
-  form: { padding: 20, borderRadius: 18, backgroundColor: '#fff', gap: 14 },
+  title: { color: colors.white, fontFamily: 'serif', fontSize: 32, fontWeight: '700' },
+  subtitle: { color: colors.sand, fontSize: 15, lineHeight: 22 },
+  form: {
+    padding: 20,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.line,
+    gap: 16,
+  },
+  formTitle: { fontSize: 21, lineHeight: 28, color: colors.forest, fontWeight: '700' },
   field: { gap: 6 },
-  fieldLabel: { fontSize: 14, color: '#302653', fontWeight: '600' },
+  fieldLabel: { fontSize: 15, lineHeight: 21, color: colors.ink, fontWeight: '600' },
+  help: { fontSize: 15, lineHeight: 22, color: colors.muted },
   input: {
     minHeight: 52,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: '#cfc6e4',
+    borderWidth: 2,
+    borderColor: colors.fieldBorder,
     borderRadius: 10,
-    backgroundColor: '#faf9fe',
-    color: '#252047',
+    backgroundColor: colors.white,
+    color: colors.forest,
     fontSize: 16,
     textAlign: 'left',
     textAlignVertical: 'center',
-    includeFontPadding: false,
   },
+  focusedInput: { borderColor: colors.hunter, backgroundColor: colors.white },
 });

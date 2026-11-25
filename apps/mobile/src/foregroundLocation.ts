@@ -2,7 +2,7 @@ import { AppState, PermissionsAndroid, Platform } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
 import { attendanceLocation, type AttendanceLocation } from '@renuka/shared';
 
-type Limits = { maximumAccuracy: number; maximumAgeSeconds: number };
+type Limits = { preferredAccuracy: number; maximumAccuracy: number; maximumAgeSeconds: number };
 function gpsError(code: number) {
   if (code === 1)
     return new Error(
@@ -39,32 +39,49 @@ export async function captureForegroundLocation(
   if (AppState.currentState !== 'active')
     throw new Error('Keep the app open to capture your location.');
   return new Promise<AttendanceLocation>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      subscription.remove();
-      reject(gpsError(3));
-    }, 16000);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') {
-        clearTimeout(timer);
-        subscription.remove();
-        reject(new Error('Location capture stopped. Open the app and try again.'));
-      }
-    });
-    const finish = () => {
+    const maxAge = limits.maximumAgeSeconds * 1000;
+    const target = Math.min(limits.preferredAccuracy, limits.maximumAccuracy);
+    let best: { location: AttendanceLocation; timestamp: number; mocked: boolean } | undefined;
+    let sawStale = false;
+    let sawInaccurate = false;
+    let finished = false;
+    let watch: number | undefined;
+
+    function finish(error?: Error) {
+      if (finished) return;
+      finished = true;
       clearTimeout(timer);
       subscription.remove();
-    };
-    const deadline = Date.now() + 16000;
-    Geolocation.getCurrentPosition(
+      if (watch !== undefined) Geolocation.clearWatch(watch);
+      if (error) {
+        reject(error);
+      } else if (best && Date.now() - best.timestamp <= maxAge) {
+        onMocked?.(best.mocked);
+        resolve(best.location);
+      } else if (sawInaccurate) {
+        reject(new Error('Location accuracy is too low. Move to an open area and retry.'));
+      } else if (sawStale || best) {
+        reject(new Error('GPS returned an old reading. Capture again.'));
+      } else {
+        reject(gpsError(3));
+      }
+    }
+
+    const timer = setTimeout(() => finish(), Math.min(15_000, maxAge));
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active')
+        finish(new Error('Location capture stopped. Open the app and try again.'));
+    });
+    watch = Geolocation.watchPosition(
       (position) => {
-        finish();
-        if (AppState.currentState !== 'active' || Date.now() > deadline) {
-          reject(gpsError(3));
+        if (finished) return;
+        if (AppState.currentState !== 'active') {
+          finish(new Error('Location capture stopped. Open the app and try again.'));
           return;
         }
         const age = Date.now() - position.timestamp;
-        if (!Number.isFinite(age) || age > limits.maximumAgeSeconds * 1000 || age < -5000) {
-          reject(new Error('GPS returned an old reading. Capture again.'));
+        if (!Number.isFinite(age) || age > maxAge || age < -5000) {
+          sawStale = true;
           return;
         }
         const result = attendanceLocation.safeParse({
@@ -74,21 +91,30 @@ export async function captureForegroundLocation(
           capturedAt: new Date(position.timestamp).toISOString(),
         });
         if (!result.success || result.data.accuracy > limits.maximumAccuracy) {
-          reject(new Error('Location accuracy is too low. Move to an open area and retry.'));
+          sawInaccurate = true;
           return;
         }
-        onMocked?.((position as { mocked?: boolean }).mocked === true);
-        resolve(result.data);
+        if (
+          !best ||
+          Date.now() - best.timestamp > maxAge ||
+          result.data.accuracy < best.location.accuracy ||
+          (result.data.accuracy === best.location.accuracy && position.timestamp > best.timestamp)
+        ) {
+          best = {
+            location: result.data,
+            timestamp: position.timestamp,
+            mocked: (position as { mocked?: boolean }).mocked === true,
+          };
+        }
+        if (result.data.accuracy <= target) finish();
       },
       (error) => {
-        finish();
-        reject(gpsError(error.code));
+        if (error.code === 1) finish(gpsError(1));
+        else if (error.code === 3 || best || sawInaccurate || sawStale) finish();
+        else finish(gpsError(error.code));
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0,
-      },
+      { enableHighAccuracy: true, maximumAge: 0, distanceFilter: 0, interval: 1000 },
     );
+    if (finished) Geolocation.clearWatch(watch);
   });
 }

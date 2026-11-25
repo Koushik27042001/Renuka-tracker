@@ -13,6 +13,7 @@ import { createPasswords } from '../src/modules/auth/password.js';
 import { bootstrapAdmin } from '../src/scripts/createAdmin.js';
 
 const origin = 'https://admin.example.test';
+const employeeOrigin = 'https://employee.example.test';
 const secret = randomBytes(48).toString('base64url');
 const password = randomBytes(20).toString('base64url');
 const credentials = { identifier: 'emp001', password };
@@ -21,6 +22,7 @@ const header = 'X-Auth-Transport';
 const settings = {
   NODE_ENV: 'test',
   ADMIN_ORIGINS: origin,
+  EMPLOYEE_WEB_ORIGINS: employeeOrigin,
   COOKIE_SECURE: 'true',
   JWT_ACCESS_SECRET: secret,
   LOG_LEVEL: 'silent',
@@ -88,6 +90,41 @@ const me = (accessToken: string) =>
     .auth(accessToken, { type: 'bearer' });
 
 describe('Phase 2 backend', () => {
+  it('isolates employee browser sessions from admin and native auth', async () => {
+    const webPost = (path: string, allowedOrigin = employeeOrigin) =>
+      agent()
+        .post(authPath + path)
+        .set('Origin', allowedOrigin)
+        .set(header, 'employee-web');
+    await webPost('/login', origin).send(credentials).expect(403);
+    await webPost('/login', 'https://other.example.test').send(credentials).expect(403);
+    const login = await webPost('/login').send(credentials).expect(200);
+    expect(login.body.data.user.role).toBe('EMPLOYEE');
+    expect(login.body.data.refreshToken).toBeUndefined();
+    const setCookie = String(login.headers['set-cookie']?.[0]);
+    expect(setCookie).toMatch(/^__Host-renuka_employee_refresh=/);
+    expect(setCookie).toMatch(/HttpOnly/i);
+    expect(setCookie).toMatch(/Secure/i);
+    const cookie = setCookie.split(';')[0];
+    await agent()
+      .post(authPath + '/refresh')
+      .set('Origin', origin)
+      .set(header, 'web')
+      .set('Cookie', cookie)
+      .send({})
+      .expect(401);
+    await refresh(cookie.split('=')[1]).expect(401);
+    const rotated = await webPost('/refresh').set('Cookie', cookie).send({}).expect(200);
+    const nextCookie = String(rotated.headers['set-cookie']?.[0]).split(';')[0];
+    expect(nextCookie).not.toBe(cookie);
+    await webPost('/logout').set('Cookie', nextCookie).send({}).expect(200);
+    await webPost('/refresh?checkSession=true')
+      .set('Cookie', nextCookie)
+      .send({})
+      .expect(200)
+      .expect(({ body }) => expect(body.data.session).toBeNull());
+  });
+
   it('preserves legacy health, checks MongoDB readiness, and returns 503 on loss', async () => {
     await agent().get('/api/health').expect(200, { status: 'ok', service: 'renuka-api' });
     await agent()

@@ -9,7 +9,7 @@ From the workspace root, run `npm ci`, `npm run build:api` and `npm run db:index
 | `CLOUDINARY_URL` | Existing backend-only Cloudinary URL. Alternatively set all three credential fields below. |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Separate backend-only Cloudinary credentials. |
 | `CLOUDINARY_FOLDER` | Storage namespace, defaults to `fieldforce/evidence`. Use a separate namespace per environment. |
-| `GEOCODING_REVERSE_URL` | Optional HTTPS Nominatim-compatible reverse endpoint. Use an organization-approved provider for employee data. |
+| `GEOCODING_REVERSE_URL` | HTTPS Nominatim-compatible reverse endpoint. Set this and `GEOCODING_USER_AGENT` on the API service to include mapped addresses on new photos. Use an organization-approved provider for employee data. |
 | `GEOCODING_USER_AGENT` | Identifying application name and contact information for the provider. Required to enable address requests. |
 | `GEOCODING_API_KEY` | Optional Bearer credential for the configured endpoint. |
 | `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` | Optional tile URL and its provider attribution. The default uses attribution-bearing OpenStreetMap tiles. |

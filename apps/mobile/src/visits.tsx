@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { colors } from './theme';
 import {
   ActivityIndicator,
   Alert,
@@ -6,8 +7,10 @@ import {
   Linking,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   View,
 } from 'react-native';
 import { captureVisitPhoto, cleanCapture, type Capture } from './cameraEvidence';
@@ -58,7 +61,15 @@ async function viewEvidence(id: string, signal?: AbortSignal): Promise<string> {
     reader.readAsDataURL(blob);
   });
 }
-export function EvidenceImage({ id, onLoaded }: { id: string; onLoaded?: () => void }) {
+export function EvidenceImage({
+  evidence,
+  onLoaded,
+}: {
+  evidence: Pick<NonNullable<Visit['evidence']>, 'id' | 'width' | 'height'>;
+  onLoaded?: () => void;
+}) {
+  const { id, width, height } = evidence;
+  const [decodeFailed, setDecodeFailed] = useState(false);
   const image = useQuery({
     queryKey: ['evidence', id],
     queryFn: ({ signal }) => viewEvidence(id, signal),
@@ -66,25 +77,58 @@ export function EvidenceImage({ id, onLoaded }: { id: string; onLoaded?: () => v
   });
   if (image.error)
     return <Problem message={image.error.message} retry={() => void image.refetch()} />;
+  if (decodeFailed)
+    return (
+      <Problem
+        message="Could not display the visit photo."
+        retry={() => {
+          setDecodeFailed(false);
+          void image.refetch();
+        }}
+      />
+    );
   if (!image.data) return <ActivityIndicator accessibilityLabel="Loading private evidence" />;
   return (
     <Image
       onLoad={onLoaded}
+      onError={() => setDecodeFailed(true)}
       source={{ uri: image.data, cache: 'reload' }}
       resizeMode="contain"
-      style={{ width: '100%', height: 360 }}
+      style={[visitStyles.photo, { aspectRatio: width > 0 && height > 0 ? width / height : 1 }]}
       accessibilityLabel="Watermarked visit photo"
     />
   );
 }
 const fields = [
-  ['clientName', 'Client or place'],
-  ['purpose', 'Visit purpose'],
-  ['contactName', 'Contact name'],
-  ['contactPhone', 'Contact phone'],
-  ['remarks', 'Remarks'],
-  ['notes', 'Additional notes'],
+  ['clientName', 'Client or place', 'Enter a client or site name', 120, false],
+  ['purpose', 'Visit purpose', 'Example: Stock check or client meeting', 240, true],
+  ['contactName', 'Contact name (optional)', 'Enter the contact’s name', 120, false],
+  ['contactPhone', 'Contact phone (optional)', 'Enter a phone number', 25, false],
+  ['remarks', 'Remarks (optional)', 'Summarize the outcome', 500, true],
+  ['notes', 'Additional notes (optional)', 'Add any follow-up details', 1000, true],
 ] as const;
+
+function VisitField({ label, multiline, ...props }: TextInputProps & { label: string }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <View style={visitStyles.field}>
+      <Text style={visitStyles.fieldLabel}>{label}</Text>
+      <TextInput
+        {...props}
+        accessibilityLabel={label}
+        placeholderTextColor={colors.muted}
+        multiline={multiline}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        style={[
+          visitStyles.input,
+          multiline && visitStyles.multiline,
+          focused && visitStyles.focused,
+        ]}
+      />
+    </View>
+  );
+}
 function editable(row?: Visit): VisitInput {
   if (!row) return blank;
   return {
@@ -140,7 +184,10 @@ export function VisitHistory({ navigation }: NativeStackScreenProps<AttendanceSt
   }
   return (
     <ScrollView
-      contentContainerStyle={styles.page}
+      contentContainerStyle={visitStyles.page}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
       refreshControl={
         <RefreshControl refreshing={list.isRefetching} onRefresh={() => void list.refetch()} />
       }
@@ -148,28 +195,20 @@ export function VisitHistory({ navigation }: NativeStackScreenProps<AttendanceSt
       <Action title="New field visit" onPress={() => navigation.navigate('VisitDraft', {})} />
       <View style={styles.card}>
         <Text style={styles.label}>Filter visits</Text>
-        <TextInput
-          accessibilityLabel="Search by client"
+        <VisitField
+          label="Search by client"
           placeholder="Client or place"
-          style={styles.input}
           value={search}
           onChangeText={setSearch}
           maxLength={80}
         />
-        <TextInput
-          accessibilityLabel="From date"
-          placeholder="From YYYY-MM-DD"
-          style={styles.input}
+        <VisitField
+          label="From date"
+          placeholder="YYYY-MM-DD"
           value={from}
           onChangeText={setFrom}
         />
-        <TextInput
-          accessibilityLabel="To date"
-          placeholder="To YYYY-MM-DD"
-          style={styles.input}
-          value={to}
-          onChangeText={setTo}
-        />
+        <VisitField label="To date" placeholder="YYYY-MM-DD" value={to} onChangeText={setTo} />
         <Action
           title={status ? 'Status: ' + states[status] : 'Status: All'}
           onPress={() => {
@@ -322,36 +361,48 @@ export function VisitDraft({
     });
   }
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
+      contentContainerStyle={visitStyles.page}
+    >
       {existing.error ? (
         <Problem message={existing.error.message} retry={() => void existing.refetch()} />
       ) : id && !row ? (
         <ActivityIndicator />
       ) : (
         <>
-          <Text style={styles.title}>{row?.code ?? 'New field visit'}</Text>
-          <Text style={styles.muted}>
-            Business date {row?.visitDate ?? shift.data?.attendanceDate ?? '—'}
-          </Text>
+          <View style={styles.hero}>
+            <Text accessibilityRole="header" style={styles.heroTitle}>
+              {row?.code ?? 'New field visit'}
+            </Text>
+            <Text style={styles.heroMeta}>
+              Business date {row?.visitDate ?? shift.data?.attendanceDate ?? '—'}
+            </Text>
+          </View>
           {shift.error && (
             <Problem message={shift.error.message} retry={() => void shift.refetch()} />
           )}
           {shift.data?.attendance?.status !== 'CHECKED_IN' && (
             <Text style={styles.muted}>Check in before capturing or submitting a visit.</Text>
           )}
-          <View style={styles.card}>
-            {fields.map(([name, label]) => (
-              <View key={name}>
-                <Text style={styles.muted}>{label}</Text>
-                <TextInput
-                  accessibilityLabel={label}
-                  value={form[name] ?? ''}
-                  editable={!busy}
-                  style={styles.input}
-                  keyboardType={name === 'contactPhone' ? 'phone-pad' : 'default'}
-                  onChangeText={(value) => setForm((old) => ({ ...old, [name]: value }))}
-                />
-              </View>
+          <View style={visitStyles.section}>
+            <Text accessibilityRole="header" style={styles.label}>
+              Visit details
+            </Text>
+            {fields.map(([name, label, placeholder, maxLength, multiline]) => (
+              <VisitField
+                key={name}
+                label={label}
+                placeholder={placeholder}
+                maxLength={maxLength}
+                multiline={multiline}
+                value={form[name] ?? ''}
+                editable={!busy}
+                keyboardType={name === 'contactPhone' ? 'phone-pad' : 'default'}
+                onChangeText={(value) => setForm((old) => ({ ...old, [name]: value }))}
+              />
             ))}
             {error && <Problem message={error} />}
             <Action
@@ -360,15 +411,28 @@ export function VisitDraft({
               onPress={() => void save()}
             />
           </View>
+          <View style={visitStyles.section}>
+            <Text accessibilityRole="header" style={styles.label}>
+              Visit photo
+            </Text>
+            {row?.evidence ? (
+              <EvidenceImage key={row.evidence.id} evidence={row.evidence} />
+            ) : (
+              <Text style={styles.muted}>
+                {row
+                  ? 'Add a GPS selfie before submitting this visit.'
+                  : 'Save the draft to enable the camera.'}
+              </Text>
+            )}
+            <Action
+              title={row?.evidence ? 'Preview or replace photo' : 'Add visit photo'}
+              disabled={busy || !row || !shift.data}
+              onPress={() => void openVisitPhoto()}
+              secondary
+            />
+          </View>
           {row && (
             <>
-              {!!row.evidence && <EvidenceImage id={row.evidence.id} />}
-              <Action
-                title={row.evidence ? 'Preview or replace photo' : 'Add visit photo'}
-                disabled={busy || !shift.data}
-                onPress={() => void openVisitPhoto()}
-                secondary
-              />
               <Action
                 title="Submit visit"
                 disabled={busy || !row.evidence || shift.data?.attendance?.status !== 'CHECKED_IN'}
@@ -438,9 +502,9 @@ export function VisitCamera({
       if (mounted.current) setBusy(false);
     }
   }
-  async function take(source: 'camera' | 'gallery') {
+  async function take() {
     await act(async () => {
-      const photo = await captureVisitPhoto(limits, () => mounted.current, source);
+      const photo = await captureVisitPhoto(limits, () => mounted.current);
       if (!photo) return;
       cleanCapture(current.current?.uri);
       current.current = photo;
@@ -478,26 +542,43 @@ export function VisitCamera({
   }
   const evidence = existing.data?.evidence;
   return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.title}>Visit photo</Text>
-      <Text style={styles.muted}>
-        Take a selfie or choose a JPEG or PNG from your gallery. The app records your current location
-        when you add the photo and labels gallery uploads for reviewers. If an address service is
-        configured, it receives the coordinates for address lookup.
-      </Text>
+    <ScrollView contentContainerStyle={visitStyles.page}>
+      <View style={styles.hero}>
+        <Text accessibilityRole="header" style={styles.heroTitle}>
+          {evidence ? 'Review your photo' : capture ? 'Preview your selfie' : 'Take a GPS selfie'}
+        </Text>
+        <Text style={styles.heroMeta}>
+          {evidence
+            ? 'Review the watermark before you use this photo.'
+            : capture
+              ? 'Upload the selfie to preview its GPS watermark, or retake it.'
+              : 'Your current location is added to the photo watermark. If address lookup is enabled, your coordinates are sent to the address service.'}
+        </Text>
+      </View>
       {existing.error && (
         <Problem message={existing.error.message} retry={() => void existing.refetch()} />
       )}
       {error && <Problem message={error} />}
-      {busy && <ActivityIndicator accessibilityLabel="Processing evidence" />}
-      {evidence ? (
-        <>
-          <EvidenceImage id={evidence.id} />
-          {evidence.source === 'gallery' && <Text style={styles.muted}>Gallery upload</Text>}
-          <Text style={styles.muted}>
-            {evidence.address ?? 'Address unavailable'} · ±{Math.round(evidence.accuracy)} m
+      {(busy || existing.isPending) && (
+        <View style={visitStyles.progress}>
+          <ActivityIndicator color={colors.hunter} />
+          <Text accessibilityLiveRegion="polite" style={styles.muted}>
+            {existing.isPending ? 'Loading visit photo…' : 'Working on visit photo…'}
           </Text>
-          <Action title="Use this evidence" disabled={busy} onPress={() => navigation.goBack()} />
+        </View>
+      )}
+      {evidence ? (
+        <View style={visitStyles.section}>
+          <EvidenceImage key={evidence.id} evidence={evidence} />
+          {evidence.source === 'gallery' && <Text style={styles.muted}>Gallery upload</Text>}
+          <View style={visitStyles.address}>
+            <Text style={styles.label}>
+              {evidence.accuracy > 50 ? 'Approximate area' : 'Mapped address'}
+            </Text>
+            <Text style={styles.muted}>{evidence.address ?? 'Address unavailable'}</Text>
+            <Text style={styles.muted}>GPS accuracy ±{Math.round(evidence.accuracy)} m</Text>
+          </View>
+          <Action title="Use this photo" disabled={busy} onPress={() => navigation.goBack()} />
           <Action
             title="Remove and replace photo"
             disabled={busy}
@@ -511,17 +592,15 @@ export function VisitCamera({
             }
             secondary
           />
-        </>
+        </View>
       ) : (
-        <>
+        <View style={visitStyles.section}>
           {capture && (
             <Image
               source={{ uri: capture.uri }}
               resizeMode="contain"
-              style={{ width: '100%', height: 320 }}
-              accessibilityLabel={
-                capture.metadata.source === 'gallery' ? 'Selected gallery photo' : 'Captured selfie'
-              }
+              style={[visitStyles.photo, visitStyles.capturePreview]}
+              accessibilityLabel="Captured selfie"
             />
           )}
           {!!capture && (
@@ -532,16 +611,10 @@ export function VisitCamera({
             />
           )}
           <Action
-            title={capture && !capture.metadata.source ? 'Retake selfie' : 'Take selfie'}
+            title={capture ? 'Retake selfie' : 'Take selfie'}
             disabled={busy || !existing.data}
-            onPress={() => void take('camera')}
+            onPress={() => void take()}
             secondary={!!capture}
-          />
-          <Action
-            title="Choose from gallery"
-            disabled={busy || !existing.data}
-            onPress={() => void take('gallery')}
-            secondary
           />
           {error && (
             <Action
@@ -550,7 +623,7 @@ export function VisitCamera({
               secondary
             />
           )}
-        </>
+        </View>
       )}
     </ScrollView>
   );
@@ -564,7 +637,7 @@ export function VisitDetail({ route }: NativeStackScreenProps<AttendanceStack, '
   const row = result.data;
   return (
     <ScrollView
-      contentContainerStyle={styles.page}
+      contentContainerStyle={visitStyles.page}
       refreshControl={
         <RefreshControl refreshing={result.isRefetching} onRefresh={() => void result.refetch()} />
       }
@@ -593,7 +666,7 @@ export function VisitDetail({ route }: NativeStackScreenProps<AttendanceStack, '
           </View>
           {row.evidence && (
             <View style={styles.card}>
-              <EvidenceImage id={row.evidence.id} />
+              <EvidenceImage key={row.evidence.id} evidence={row.evidence} />
               <Text style={styles.muted}>{row.evidence.address ?? 'Address unavailable'}</Text>
               <Text style={styles.muted}>
                 {row.evidence.latitude.toFixed(6)}, {row.evidence.longitude.toFixed(6)} · ±
@@ -606,3 +679,47 @@ export function VisitDetail({ route }: NativeStackScreenProps<AttendanceStack, '
     </ScrollView>
   );
 }
+
+const visitStyles = StyleSheet.create({
+  page: {
+    ...styles.page,
+    width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 28,
+  },
+  section: {
+    gap: 16,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.driedGreen,
+  },
+  field: { gap: 6 },
+  fieldLabel: { color: colors.ink, fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  input: {
+    minHeight: 52,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    color: colors.forest,
+    backgroundColor: colors.white,
+    fontSize: 16,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.fieldBorder,
+    textAlignVertical: 'center',
+  },
+  multiline: { minHeight: 92, textAlignVertical: 'top' },
+  focused: { borderColor: colors.hunter, backgroundColor: colors.white },
+  photo: {
+    width: '100%',
+    alignSelf: 'center',
+    backgroundColor: colors.forest,
+    borderRadius: 12,
+  },
+  capturePreview: { aspectRatio: 4 / 5, maxWidth: 360 },
+  address: { backgroundColor: colors.ivory, borderRadius: 12, padding: 14, gap: 6 },
+  progress: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
+});

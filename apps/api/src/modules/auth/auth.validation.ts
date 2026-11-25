@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { email, employeeCode } from '../users/user.validation.js';
 
-export const transportSchema = z.enum(['web', 'mobile']);
+export const transportSchema = z.enum(['web', 'mobile', 'employee-web']);
 export type Transport = z.infer<typeof transportSchema>;
 export const loginSchema = z.strictObject({
   identifier: z.union([email, employeeCode]),

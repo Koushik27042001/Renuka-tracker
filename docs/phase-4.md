@@ -9,7 +9,7 @@ For Android, use the SDK, NDK and JDK described in the [Phase 1 guide](phase-1.m
 | Setting | Default |
 | --- | --- |
 | `BUSINESS_TIMEZONE` | `Asia/Kolkata` |
-| `ATTENDANCE_PREFERRED_ACCURACY` | 50 metres |
+| `ATTENDANCE_PREFERRED_ACCURACY` | 20 metres |
 | `ATTENDANCE_MAX_ACCURACY` | 100 metres |
 | `ATTENDANCE_MAX_LOCATION_AGE_SECONDS` | 30 |
 | `ATTENDANCE_MAX_SHIFT_HOURS` | 24 |

@@ -6553,7 +6553,7 @@
         "required": true,
         "schema": {
           "type": "string",
-          "enum": ["web", "mobile"]
+          "enum": ["web", "mobile", "employee-web"]
         },
         "description": "An allowlisted Origin is required for web. Native clients omit Origin and Cookie."
       }

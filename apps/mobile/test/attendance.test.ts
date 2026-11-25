@@ -8,6 +8,7 @@ const bridge = vi.hoisted(() => ({
   state: { currentState: 'active', addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
   permissions: vi.fn(),
   position: vi.fn(),
+  clearWatch: vi.fn(),
   configure: vi.fn(),
   credentials: { current: '' },
 }));
@@ -22,7 +23,8 @@ vi.mock('react-native', () => ({
 }));
 vi.mock('@react-native-community/geolocation', () => ({
   default: {
-    getCurrentPosition: bridge.position,
+    watchPosition: bridge.position,
+    clearWatch: bridge.clearWatch,
     setRNConfiguration: bridge.configure,
   },
 }));
@@ -41,12 +43,13 @@ vi.mock('react-native-keychain', () => ({
 }));
 vi.mock('../config', () => ({ apiUrl: 'https://api.example.test' }));
 
-const limits = { maximumAccuracy: 100, maximumAgeSeconds: 30 };
+const limits = { preferredAccuracy: 20, maximumAccuracy: 100, maximumAgeSeconds: 30 };
 const fallbackFix = { coords: { latitude: 22.57, longitude: 88.36, accuracy: 18 } };
 beforeEach(() => {
   bridge.state.currentState = 'active';
   bridge.permissions.mockReset().mockResolvedValue({ fine: 'granted', coarse: 'granted' });
   bridge.position.mockReset();
+  bridge.clearWatch.mockClear();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -81,17 +84,51 @@ it('accepts a fresh GPS reading and handles timeout, unavailable, stale, and ina
   await expect(captureForegroundLocation(limits)).rejects.toThrow('GPS timed out');
   bridge.position.mockImplementationOnce((_success, failure) => failure({ code: 2 }));
   await expect(captureForegroundLocation(limits)).rejects.toThrow('Location Services');
-  bridge.position.mockImplementationOnce((success) =>
-    success({ ...fallbackFix, timestamp: Date.now() - 45_000 }),
-  );
+  bridge.position.mockImplementationOnce((success, failure) => {
+    success({ ...fallbackFix, timestamp: Date.now() - 45_000 });
+    failure({ code: 3 });
+  });
   await expect(captureForegroundLocation(limits)).rejects.toThrow('old reading');
-  bridge.position.mockImplementationOnce((success) =>
+  bridge.position.mockImplementationOnce((success, failure) => {
     success({
       timestamp: Date.now(),
       coords: { ...fallbackFix.coords, accuracy: 101 },
-    }),
-  );
+    });
+    failure({ code: 3 });
+  });
   await expect(captureForegroundLocation(limits)).rejects.toThrow('accuracy is too low');
+});
+
+it('waits for a more accurate GPS fix and stops watching after accepting it', async () => {
+  bridge.position.mockImplementationOnce((success) => {
+    void Promise.resolve().then(() => {
+      success({ timestamp: Date.now(), coords: { ...fallbackFix.coords, accuracy: 65 } });
+      success({ ...fallbackFix, timestamp: Date.now(), mocked: true });
+    });
+    return 1000;
+  });
+  const mocked = vi.fn();
+  await expect(captureForegroundLocation(limits, mocked)).resolves.toMatchObject({ accuracy: 18 });
+  expect(bridge.clearWatch).toHaveBeenCalledExactlyOnceWith(1000);
+  expect(mocked).toHaveBeenCalledExactlyOnceWith(true);
+});
+
+it('uses the best acceptable GPS fix when the capture window expires', async () => {
+  vi.useFakeTimers();
+  try {
+    bridge.position.mockImplementationOnce((success) => {
+      for (const accuracy of [80, 34, 56]) {
+        success({ timestamp: Date.now(), coords: { ...fallbackFix.coords, accuracy } });
+      }
+      return 1000;
+    });
+    const capture = captureForegroundLocation(limits);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await expect(capture).resolves.toMatchObject({ accuracy: 34 });
+    expect(bridge.clearWatch).toHaveBeenCalledExactlyOnceWith(1000);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('computes an elapsed clock from the server times across midnight', () => {

@@ -1,10 +1,15 @@
 import 'react-native-get-random-values';
 import { VisitCamera, VisitDetail, VisitDraft, VisitHistory } from './src/visits';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Text, TextInput, View } from 'react-native';
+import { colors } from './src/theme';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, StatusBar, Text, TextInput, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+  SafeAreaView,
+} from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MobileProfile, UpdateNotice, useReleasePolicy } from './src/release';
 import { OfflineQueue, useForegroundVisitSync } from './src/OfflineQueue';
@@ -24,7 +29,6 @@ import {
   AttendanceHome,
   Problem,
   ShiftScreen,
-  styles,
   type AttendanceStack,
 } from './src/attendanceScreens';
 
@@ -40,6 +44,8 @@ function SessionApp() {
   const [restoreError, setRestoreError] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const passwordInput = useRef<TextInput>(null);
+  const [focusedField, setFocusedField] = useState<'identifier' | 'password'>();
   const [loginError, setLoginError] = useState('');
   const [entering, setEntering] = useState(false);
   const release = useReleasePolicy();
@@ -101,7 +107,7 @@ function SessionApp() {
           <Problem message={restoreError} retry={() => void restore()} />
         ) : (
           <View style={signInStyles.form}>
-            <Text accessibilityRole="header" style={styles.label}>
+            <Text accessibilityRole="header" style={signInStyles.formTitle}>
               Employee sign in
             </Text>
             <View style={signInStyles.field}>
@@ -111,9 +117,17 @@ function SessionApp() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 autoComplete="username"
-                style={signInStyles.input}
-                placeholder="e.g. EMP0001"
-                placeholderTextColor="#625a78"
+                style={[
+                  signInStyles.input,
+                  focusedField === 'identifier' && signInStyles.focusedInput,
+                ]}
+                placeholder="Example: EMP0001"
+                placeholderTextColor={colors.muted}
+                onFocus={() => setFocusedField('identifier')}
+                onBlur={() => setFocusedField(undefined)}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => passwordInput.current?.focus()}
                 value={identifier}
                 onChangeText={setIdentifier}
               />
@@ -121,86 +135,123 @@ function SessionApp() {
             <View style={signInStyles.field}>
               <Text style={signInStyles.fieldLabel}>Password</Text>
               <TextInput
+                ref={passwordInput}
                 accessibilityLabel="Password"
                 secureTextEntry
                 autoComplete="current-password"
                 maxLength={128}
-                style={signInStyles.input}
+                style={[
+                  signInStyles.input,
+                  focusedField === 'password' && signInStyles.focusedInput,
+                ]}
                 placeholder="Enter your password"
-                placeholderTextColor="#625a78"
+                placeholderTextColor={colors.muted}
+                onFocus={() => setFocusedField('password')}
+                onBlur={() => setFocusedField(undefined)}
                 value={password}
                 onChangeText={setPassword}
                 returnKeyType="go"
                 onSubmitEditing={() => void login()}
               />
             </View>
-            <Text style={styles.muted}>
-              First time? Use the activation link from your administrator to set your password.
-            </Text>
             {loginError && <Problem message={loginError} />}
             <Action
               title={entering ? 'Signing in…' : 'Sign in'}
               disabled={entering || !identifier.trim() || !password}
               onPress={() => void login()}
             />
+            <Text style={signInStyles.help}>
+              <Text style={signInStyles.fieldLabel}>First time? </Text>
+              Use the activation link from your administrator to set your password.
+            </Text>
           </View>
         )}
       </SignInLayout>
     );
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Attendance">
-        <Stack.Screen name="Attendance">
-          {(props) => (
-            <View style={{ flex: 1 }}>
-              {release.data?.updateAvailable && <UpdateNotice policy={release.data} />}
-              <AttendanceHome {...props} employee={employee} onLogout={logoutEmployee} />
-            </View>
-          )}
-        </Stack.Screen>
-        <Stack.Screen name="CheckIn" component={ShiftScreen} options={{ title: 'Check in' }} />
-        <Stack.Screen name="CheckOut" component={ShiftScreen} options={{ title: 'Check out' }} />
-        <Stack.Screen
-          name="History"
-          component={AttendanceHistory}
-          options={{ title: 'Attendance history' }}
-        />
-        <Stack.Screen
-          name="Details"
-          component={AttendanceDetails}
-          options={{ title: 'Attendance details' }}
-        />
-        <Stack.Screen name="Profile" options={{ title: 'Profile and settings' }}>
-          {() => <MobileProfile employee={employee} onLogout={logoutEmployee} />}
-        </Stack.Screen>
-        <Stack.Screen name="OfflineQueue" options={{ title: 'Offline visits' }}>
-          {({ navigation }) => (
-            <OfflineQueue
-              enableCapture={release.data?.offlineEvidenceEnabled !== false}
-              owner={employee.id}
-              detail={(id) => navigation.replace('VisitDetail', { id })}
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.forest }}>
+      <StatusBar barStyle="light-content" />
+      <SafeAreaProvider>
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName="Attendance"
+            screenOptions={{
+              contentStyle: { backgroundColor: colors.ivory },
+              headerStyle: { backgroundColor: colors.forest },
+              headerTintColor: colors.white,
+              headerTitleStyle: { fontWeight: '700' },
+              headerShadowVisible: false,
+            }}
+          >
+            <Stack.Screen name="Attendance" options={{ title: 'Rss hrms desk' }}>
+              {(props) => (
+                <AttendanceHome
+                  {...props}
+                  employee={employee}
+                  onLogout={logoutEmployee}
+                  updateNotice={
+                    release.data?.updateAvailable && <UpdateNotice policy={release.data} />
+                  }
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen name="CheckIn" component={ShiftScreen} options={{ title: 'Check in' }} />
+            <Stack.Screen
+              name="CheckOut"
+              component={ShiftScreen}
+              options={{ title: 'Check out' }}
             />
-          )}
-        </Stack.Screen>
-        <Stack.Screen name="Visits" component={VisitHistory} options={{ title: 'Field visits' }} />
-        <Stack.Screen name="VisitDraft" component={VisitDraft} options={{ title: 'Visit draft' }} />
-        <Stack.Screen
-          name="VisitCamera"
-          component={VisitCamera}
-          options={{ title: 'Visit photo' }}
-        />
-        <Stack.Screen
-          name="VisitDetail"
-          component={VisitDetail}
-          options={{ title: 'Visit details' }}
-        />
-      </Stack.Navigator>
-    </NavigationContainer>
+            <Stack.Screen
+              name="History"
+              component={AttendanceHistory}
+              options={{ title: 'Attendance history' }}
+            />
+            <Stack.Screen
+              name="Details"
+              component={AttendanceDetails}
+              options={{ title: 'Attendance details' }}
+            />
+            <Stack.Screen name="Profile" options={{ title: 'Profile and settings' }}>
+              {() => <MobileProfile employee={employee} onLogout={logoutEmployee} />}
+            </Stack.Screen>
+            <Stack.Screen name="OfflineQueue" options={{ title: 'Offline visits' }}>
+              {({ navigation }) => (
+                <OfflineQueue
+                  enableCapture={release.data?.offlineEvidenceEnabled !== false}
+                  owner={employee.id}
+                  detail={(id) => navigation.replace('VisitDetail', { id })}
+                />
+              )}
+            </Stack.Screen>
+            <Stack.Screen
+              name="Visits"
+              component={VisitHistory}
+              options={{ title: 'Field visits' }}
+            />
+            <Stack.Screen
+              name="VisitDraft"
+              component={VisitDraft}
+              options={{ title: 'Visit draft' }}
+            />
+            <Stack.Screen
+              name="VisitCamera"
+              component={VisitCamera}
+              options={{ title: 'Visit photo' }}
+            />
+            <Stack.Screen
+              name="VisitDetail"
+              component={VisitDetail}
+              options={{ title: 'Visit details' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaProvider>
+    </SafeAreaView>
   );
 }
 export default function App() {
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <QueryClientProvider client={client}>
         <SessionApp />
       </QueryClientProvider>
