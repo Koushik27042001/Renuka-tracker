@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { colors } from './theme';
+import { colors, homeColors } from './theme';
 import {
   ActivityIndicator,
   AppState,
@@ -37,6 +37,7 @@ export type AttendanceStack = {
   Visits: undefined;
   OfflineQueue: undefined;
   Profile: undefined;
+  Permissions: undefined;
   VisitDraft: { id?: string };
   VisitCamera: { id: string; limits: CurrentAttendance['limits'] };
   VisitDetail: { id: string };
@@ -48,13 +49,13 @@ export function Action({
   onPress,
   disabled,
   secondary,
-  attendance,
+  variant,
 }: {
   title: string;
   onPress: () => void;
   disabled?: boolean;
   secondary?: boolean;
-  attendance?: boolean;
+  variant?: 'attendance' | 'home';
 }) {
   return (
     <Pressable
@@ -65,7 +66,8 @@ export function Action({
       style={[
         styles.button,
         secondary && styles.secondary,
-        attendance && styles.attendanceButton,
+        variant === 'attendance' && styles.attendanceButton,
+        variant === 'home' && styles.homeButton,
         disabled && styles.disabled,
       ]}
     >
@@ -95,7 +97,7 @@ function DashboardLink({
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      style={({ pressed }) => [styles.dashboardLink, pressed && styles.secondary]}
+      style={({ pressed }) => [styles.dashboardLink, pressed && styles.dashboardLinkPressed]}
     >
       <Text style={styles.label}>{title}</Text>
       <Text style={styles.muted}>{detail}</Text>
@@ -197,29 +199,34 @@ export function AttendanceHome({
   }
   return (
     <ScrollView
-      contentContainerStyle={styles.page}
+      contentContainerStyle={[styles.page, styles.homePage]}
       refreshControl={
-        <RefreshControl refreshing={current.isRefetching} onRefresh={() => void refetch()} />
+        <RefreshControl
+          refreshing={current.isRefetching}
+          onRefresh={() => void refetch()}
+          colors={[homeColors.red]}
+          tintColor={homeColors.red}
+        />
       }
     >
-      <View style={styles.hero}>
-        <View style={styles.heroAccent} />
+      <View style={[styles.hero, styles.homeHero]}>
+        <View style={styles.homeAccent} />
         <Text accessibilityRole="header" style={styles.heroTitle}>
           {employee.fullName}
         </Text>
-        <Text style={styles.heroMeta}>
+        <Text style={[styles.heroMeta, styles.homeHeroMeta]}>
           {employee.employeeCode}
           {data?.attendanceDate ? ' · ' + data.attendanceDate : ''}
         </Text>
       </View>
       {updateNotice}
       {current.isPending ? (
-        <ActivityIndicator accessibilityLabel="Loading attendance" />
+        <ActivityIndicator color={homeColors.red} accessibilityLabel="Loading attendance" />
       ) : current.error ? (
         <Problem message={current.error.message} retry={() => void refetch()} />
       ) : (
         data && (
-          <View style={styles.card}>
+          <View style={[styles.card, styles.homeCard]}>
             <Text style={styles.label}>{row ? statusNames[row.status] : 'Not checked in'}</Text>
             {checkedIn && row ? (
               <WorkingTimer
@@ -239,13 +246,13 @@ export function AttendanceHome({
             {checkedIn && row ? (
               <Action
                 title="Check out"
-                attendance
+                variant="home"
                 onPress={() => navigation.navigate('CheckOut', { limits: data.limits, id: row.id })}
               />
             ) : (
               <Action
                 title="Check in"
-                attendance
+                variant="home"
                 onPress={() => navigation.navigate('CheckIn', { limits: data.limits })}
               />
             )}
@@ -401,7 +408,7 @@ export function ShiftScreen(
           {!!fix && (
             <Action
               title={pending ? 'Retry submission' : 'Confirm ' + title}
-              attendance
+              variant="attendance"
               onPress={() => void submit()}
               disabled={busy}
             />
@@ -591,7 +598,11 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   hero: { padding: 22, borderRadius: 20, backgroundColor: colors.forest, gap: 6 },
-  heroAccent: { width: 32, height: 2, backgroundColor: colors.gold, marginBottom: 6 },
+  homePage: { backgroundColor: homeColors.sky },
+  homeHero: { backgroundColor: homeColors.red },
+  homeHeroMeta: { color: homeColors.white },
+  homeAccent: { width: 34, height: 3, backgroundColor: homeColors.skyAccent, marginBottom: 6 },
+  homeCard: { backgroundColor: homeColors.white, borderColor: homeColors.line },
   heroTitle: { color: colors.white, fontFamily: 'serif', fontSize: 29, fontWeight: '700' },
   heroMeta: { color: colors.sand, fontSize: 15, lineHeight: 22 },
   dashboardLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
@@ -602,10 +613,11 @@ export const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.white,
+    borderColor: homeColors.line,
+    backgroundColor: homeColors.white,
     gap: 5,
   },
+  dashboardLinkPressed: { backgroundColor: homeColors.skyPressed },
   timer: { fontSize: 34, color: colors.forest, fontVariant: ['tabular-nums'], fontWeight: '700' },
   button: {
     padding: 12,
@@ -618,6 +630,7 @@ export const styles = StyleSheet.create({
   buttonText: { color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' },
   secondary: { backgroundColor: colors.greenWash },
   attendanceButton: { backgroundColor: colors.rust },
+  homeButton: { backgroundColor: homeColors.red },
   secondaryText: { color: colors.hunter },
   disabled: { backgroundColor: colors.driedGreen },
   disabledText: { color: colors.muted },

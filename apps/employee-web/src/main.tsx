@@ -174,7 +174,7 @@ function SignedIn({ employee }: { employee: Employee }) {
     );
   }
   return (
-    <div className="workspace">
+    <div className={location.pathname === '/' ? 'workspace workspace-home' : 'workspace'}>
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>

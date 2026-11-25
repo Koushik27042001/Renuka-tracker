@@ -1,5 +1,6 @@
-import { AppState, PermissionsAndroid, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import Geolocation from '@react-native-community/geolocation';
+import { requestLocationPermission } from './devicePermissions';
 import { attendanceLocation, type AttendanceLocation } from '@renuka/shared';
 
 type Limits = { preferredAccuracy: number; maximumAccuracy: number; maximumAgeSeconds: number };
@@ -17,25 +18,7 @@ export async function captureForegroundLocation(
 ): Promise<AttendanceLocation> {
   if (AppState.currentState !== 'active')
     throw new Error('Keep the app open to capture your location.');
-  Geolocation.setRNConfiguration({
-    skipPermissionRequests: true,
-    authorizationLevel: 'whenInUse',
-    enableBackgroundLocationUpdates: false,
-  });
-  if (Platform.OS === 'android') {
-    const fine = PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION;
-    const coarse = PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION;
-    const grants = await PermissionsAndroid.requestMultiple([fine, coarse]);
-    if (grants[fine] !== PermissionsAndroid.RESULTS.GRANTED) {
-      if (grants[coarse] === PermissionsAndroid.RESULTS.GRANTED)
-        throw new Error('Enable precise location in Settings and try again.');
-      throw gpsError(1);
-    }
-  } else {
-    await new Promise<void>((resolve, reject) =>
-      Geolocation.requestAuthorization(resolve, (error) => reject(gpsError(error.code))),
-    );
-  }
+  await requestLocationPermission();
   if (AppState.currentState !== 'active')
     throw new Error('Keep the app open to capture your location.');
   return new Promise<AttendanceLocation>((resolve, reject) => {

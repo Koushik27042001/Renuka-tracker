@@ -1,9 +1,9 @@
 import 'react-native-get-random-values';
 import { VisitCamera, VisitDetail, VisitDraft, VisitHistory } from './src/visits';
-import { colors } from './src/theme';
+import { colors, homeColors } from './src/theme';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StatusBar, Text, TextInput, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
   initialWindowMetrics,
@@ -14,6 +14,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MobileProfile, UpdateNotice, useReleasePolicy } from './src/release';
 import { OfflineQueue, useForegroundVisitSync } from './src/OfflineQueue';
 import { SignInLayout, signInStyles } from './src/SignInLayout';
+import { EmployeeDrawer, ToolbarButton, type DrawerRoute } from './src/EmployeeDrawer';
+import { PermissionSettings } from './src/PermissionSettings';
 import {
   cachedEmployee,
   MobileApiError,
@@ -39,6 +41,15 @@ const client = new QueryClient({
 type Employee = Awaited<ReturnType<typeof loginEmployee>>;
 
 function SessionApp() {
+  const navigation = useNavigationContainerRef<AttendanceStack>();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [onHome, setOnHome] = useState(true);
+  const updateHome = () => setOnHome(navigation.getCurrentRoute()?.name === 'Attendance');
+  function openDrawerRoute(route: DrawerRoute) {
+    setDrawerOpen(false);
+    if (navigation.isReady() && navigation.getCurrentRoute()?.name !== route)
+      navigation.navigate(route);
+  }
   const [employee, setEmployee] = useState<Employee | null>(null);
   const [restoring, setRestoring] = useState(true);
   const [restoreError, setRestoreError] = useState('');
@@ -169,19 +180,45 @@ function SessionApp() {
       </SignInLayout>
     );
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.forest }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: onHome ? homeColors.red : colors.forest }}>
       <StatusBar barStyle="light-content" />
       <SafeAreaProvider>
-        <NavigationContainer>
+        <NavigationContainer ref={navigation} onReady={updateHome} onStateChange={updateHome}>
           <Stack.Navigator
             initialRouteName="Attendance"
-            screenOptions={{
-              contentStyle: { backgroundColor: colors.ivory },
-              headerStyle: { backgroundColor: colors.forest },
+            screenOptions={({ route }) => ({
+              contentStyle: {
+                backgroundColor: route.name === 'Attendance' ? homeColors.sky : colors.ivory,
+              },
+              headerStyle: {
+                backgroundColor: route.name === 'Attendance' ? homeColors.red : colors.forest,
+              },
               headerTintColor: colors.white,
               headerTitleStyle: { fontWeight: '700' },
               headerShadowVisible: false,
-            }}
+              ...(route.name === 'Attendance' && {
+                headerLeft: () => (
+                  <ToolbarButton label="Open navigation menu" onPress={() => setDrawerOpen(true)} />
+                ),
+              }),
+              headerRight: () => (
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {route.name !== 'Attendance' && (
+                    <ToolbarButton
+                      label="Open navigation menu"
+                      onPress={() => setDrawerOpen(true)}
+                    />
+                  )}
+                  {route.name !== 'Profile' && (
+                    <ToolbarButton
+                      label="Open profile"
+                      employee={employee}
+                      onPress={() => openDrawerRoute('Profile')}
+                    />
+                  )}
+                </View>
+              ),
+            })}
           >
             <Stack.Screen name="Attendance" options={{ title: 'Rss hrms desk' }}>
               {(props) => (
@@ -212,8 +249,19 @@ function SessionApp() {
               options={{ title: 'Attendance details' }}
             />
             <Stack.Screen name="Profile" options={{ title: 'Profile and settings' }}>
-              {() => <MobileProfile employee={employee} onLogout={logoutEmployee} />}
+              {({ navigation }) => (
+                <MobileProfile
+                  employee={employee}
+                  onLogout={logoutEmployee}
+                  onPermissions={() => navigation.navigate('Permissions')}
+                />
+              )}
             </Stack.Screen>
+            <Stack.Screen
+              name="Permissions"
+              component={PermissionSettings}
+              options={{ title: 'App permissions' }}
+            />
             <Stack.Screen name="OfflineQueue" options={{ title: 'Offline visits' }}>
               {({ navigation }) => (
                 <OfflineQueue
@@ -245,6 +293,13 @@ function SessionApp() {
             />
           </Stack.Navigator>
         </NavigationContainer>
+        <EmployeeDrawer
+          employee={employee}
+          visible={drawerOpen}
+          current={drawerOpen ? (navigation.getCurrentRoute()?.name ?? 'Attendance') : 'Attendance'}
+          close={() => setDrawerOpen(false)}
+          open={openDrawerRoute}
+        />
       </SafeAreaProvider>
     </SafeAreaView>
   );

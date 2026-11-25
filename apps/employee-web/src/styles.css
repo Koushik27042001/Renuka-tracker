@@ -717,6 +717,86 @@ textarea {
   gap: 1rem;
   align-items: start;
 }
+
+.workspace-home {
+  --home-red: #a61e32;
+  --home-red-dark: #811a2b;
+  --home-sky: #eaf7fd;
+  --home-sky-accent: #b9e5f9;
+  --home-line: #c4e4f3;
+  background: var(--home-sky);
+}
+
+.workspace-home .topbar {
+  background: var(--home-red);
+  color: white;
+}
+
+.workspace-home .topbar .avatar {
+  background: var(--home-sky-accent);
+}
+
+.workspace-home .sidebar {
+  background: var(--home-red-dark);
+  color: white;
+}
+
+.workspace-home .sidebar nav a,
+.workspace-home .sidebar-logout {
+  color: white;
+}
+
+.workspace-home .sidebar nav a:hover,
+.workspace-home .sidebar-logout:hover {
+  background: var(--home-red);
+}
+
+.workspace-home .sidebar nav a.active {
+  color: var(--home-red-dark);
+  background: var(--home-sky-accent);
+}
+
+.workspace-home .sidebar nav a.active svg {
+  color: inherit;
+}
+
+.workspace-home .dashboard-hero {
+  background: linear-gradient(120deg, var(--home-red-dark), var(--home-red));
+}
+
+.workspace-home .hero-copy p,
+.workspace-home .hero-date {
+  color: white;
+}
+
+.workspace-home .shift-card {
+  color: var(--color-forest);
+  background: white;
+  border-color: var(--home-line);
+}
+
+.workspace-home .shift-status,
+.workspace-home .shift-label {
+  color: var(--color-ink);
+}
+
+.workspace-home .shift-card .primary {
+  color: white;
+  background: var(--home-red);
+}
+
+.workspace-home .dashboard .card {
+  border-color: var(--home-line);
+}
+
+.workspace-home .dashboard .record-icon,
+.workspace-home .bottom-nav a.active {
+  background: var(--home-sky-accent);
+}
+
+.workspace-home .dashboard .quick:hover {
+  border-color: var(--home-red);
+}
 .section-head a {
   font-size: 0.89rem;
   font-weight: 800;

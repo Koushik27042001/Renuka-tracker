@@ -58,9 +58,11 @@ export function UpdateNotice({
 export function MobileProfile({
   employee,
   onLogout,
+  onPermissions,
 }: {
   employee: { fullName: string; employeeCode: string; department?: string; designation?: string };
   onLogout: () => Promise<void>;
+  onPermissions: () => void;
 }) {
   const policy = useReleasePolicy();
   const logout = useQuery({
@@ -88,6 +90,7 @@ export function MobileProfile({
         )}
       </View>
       {policy.data?.updateAvailable && <UpdateNotice policy={policy.data} />}
+      <Action title="App permissions" secondary onPress={onPermissions} />
       {logout.isError && <Problem message="Could not sign out. Try again while connected." />}
       <Action title="Sign out" disabled={logout.isFetching} onPress={() => void logout.refetch()} />
     </ScrollView>

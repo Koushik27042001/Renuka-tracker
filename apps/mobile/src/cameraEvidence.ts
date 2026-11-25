@@ -1,5 +1,6 @@
-import { AppState, PermissionsAndroid, Platform } from 'react-native';
+import { AppState } from 'react-native';
 import { launchCamera } from 'react-native-image-picker';
+import { requestCameraPermission } from './devicePermissions';
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import type { CurrentAttendance } from '@renuka/shared';
 import { captureForegroundLocation } from './foregroundLocation';
@@ -31,11 +32,7 @@ export async function captureVisitPhoto(
   isOpen = () => true,
 ): Promise<Capture | undefined> {
   if (AppState.currentState !== 'active') throw new Error('Open the app before taking a selfie.');
-  if (Platform.OS === 'android') {
-    const permission = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA);
-    if (permission !== PermissionsAndroid.RESULTS.GRANTED)
-      throw new Error('Allow camera access in Settings to take a selfie.');
-  }
+  await requestCameraPermission();
   const result = await launchCamera({
     mediaType: 'photo',
     cameraType: 'front',
