@@ -5,29 +5,41 @@ import { loginEmployee, mobileAttendance, restoreMobileSession, logoutEmployee }
 import type { AttendanceSubmission } from '@renuka/shared';
 
 const bridge = vi.hoisted(() => ({
-  state: { currentState: 'active', addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
+  state: {
+    currentState: 'active',
+    addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+  },
   permissions: vi.fn(),
   position: vi.fn(),
-  clearWatch: vi.fn(),
-  configure: vi.fn(),
+  cancel: vi.fn(),
+  cached: vi.fn(),
+  enabled: vi.fn(),
+  check: vi.fn(),
+
   credentials: { current: '' },
 }));
 vi.mock('react-native', () => ({
   AppState: bridge.state,
   Platform: { OS: 'android' },
+  NativeModules: {
+    RenukaForegroundLocation: {
+      capture: bridge.position,
+      cancel: bridge.cancel,
+      cached: bridge.cached,
+      ensureEnabled: bridge.enabled,
+    },
+  },
   PermissionsAndroid: {
-    PERMISSIONS: { ACCESS_FINE_LOCATION: 'fine', ACCESS_COARSE_LOCATION: 'coarse' },
+    PERMISSIONS: {
+      ACCESS_FINE_LOCATION: 'fine',
+      ACCESS_COARSE_LOCATION: 'coarse',
+    },
     RESULTS: { GRANTED: 'granted' },
     requestMultiple: bridge.permissions,
+    check: bridge.check,
   },
 }));
-vi.mock('@react-native-community/geolocation', () => ({
-  default: {
-    watchPosition: bridge.position,
-    clearWatch: bridge.clearWatch,
-    setRNConfiguration: bridge.configure,
-  },
-}));
+vi.mock('@react-native-community/geolocation', () => ({ default: {} }));
 vi.mock('react-native-keychain', () => ({
   ACCESSIBLE: { WHEN_UNLOCKED_THIS_DEVICE_ONLY: 'device-only' },
   getGenericPassword: async () =>
@@ -43,94 +55,140 @@ vi.mock('react-native-keychain', () => ({
 }));
 vi.mock('../config', () => ({ apiUrl: 'https://api.example.test' }));
 
-const limits = { preferredAccuracy: 20, maximumAccuracy: 100, maximumAgeSeconds: 30 };
-const fallbackFix = { coords: { latitude: 22.57, longitude: 88.36, accuracy: 18 } };
+const limits = {
+  preferredAccuracy: 20,
+  maximumAccuracy: 100,
+  maximumAgeSeconds: 30,
+};
+const fallbackFix = {
+  coords: { latitude: 22.57, longitude: 88.36, accuracy: 18 },
+};
 beforeEach(() => {
   bridge.state.currentState = 'active';
   bridge.permissions.mockReset().mockResolvedValue({ fine: 'granted', coarse: 'granted' });
   bridge.position.mockReset();
-  bridge.clearWatch.mockClear();
+  bridge.cancel.mockClear();
+  bridge.check.mockReset().mockResolvedValue(false);
+  bridge.enabled.mockReset().mockResolvedValue(true);
+  bridge.cached.mockReset().mockResolvedValue([]);
+  bridge.state.addEventListener.mockClear();
 });
 afterEach(() => vi.unstubAllGlobals());
 
-it('requires foreground permission and never starts capture in the background', async () => {
+it('checks the foreground, permission and location services before starting', async () => {
   bridge.state.currentState = 'background';
   await expect(captureForegroundLocation(limits)).rejects.toThrow('Keep the app open');
   expect(bridge.permissions).not.toHaveBeenCalled();
   bridge.state.currentState = 'active';
-  bridge.permissions.mockResolvedValue({ fine: 'denied', coarse: 'granted' });
-  await expect(captureForegroundLocation(limits)).rejects.toThrow('precise location');
-  bridge.permissions.mockResolvedValue({ fine: 'denied', coarse: 'denied' });
+  bridge.permissions.mockResolvedValueOnce({
+    fine: 'denied',
+    coarse: 'denied',
+  });
   await expect(captureForegroundLocation(limits)).rejects.toThrow('permission was denied');
+  bridge.enabled.mockResolvedValueOnce(false);
+  await expect(captureForegroundLocation(limits)).rejects.toThrow('Location Services are off');
   expect(bridge.position).not.toHaveBeenCalled();
 });
 
-it('accepts a fresh GPS reading and handles timeout, unavailable, stale, and inaccurate readings', async () => {
-  bridge.position.mockImplementationOnce((success) =>
-    success({ ...fallbackFix, timestamp: Date.now() }),
-  );
-  await expect(captureForegroundLocation(limits)).resolves.toMatchObject({
-    latitude: 22.57,
-    accuracy: 18,
-  });
-  expect(bridge.configure).toHaveBeenCalledWith(
-    expect.objectContaining({ enableBackgroundLocationUpdates: false }),
-  );
-  expect(bridge.position.mock.calls[0][2]).toMatchObject({
-    maximumAge: 0,
-    enableHighAccuracy: true,
-  });
-  bridge.position.mockImplementationOnce((_success, failure) => failure({ code: 3 }));
-  await expect(captureForegroundLocation(limits)).rejects.toThrow('GPS timed out');
-  bridge.position.mockImplementationOnce((_success, failure) => failure({ code: 2 }));
-  await expect(captureForegroundLocation(limits)).rejects.toThrow('Location Services');
-  bridge.position.mockImplementationOnce((success, failure) => {
-    success({ ...fallbackFix, timestamp: Date.now() - 45_000 });
-    failure({ code: 3 });
-  });
-  await expect(captureForegroundLocation(limits)).rejects.toThrow('old reading');
-  bridge.position.mockImplementationOnce((success, failure) => {
-    success({
-      timestamp: Date.now(),
-      coords: { ...fallbackFix.coords, accuracy: 101 },
-    });
-    failure({ code: 3 });
-  });
-  await expect(captureForegroundLocation(limits)).rejects.toThrow('accuracy is too low');
-});
-
-it('waits for a more accurate GPS fix and stops watching after accepting it', async () => {
-  bridge.position.mockImplementationOnce((success) => {
-    void Promise.resolve().then(() => {
-      success({ timestamp: Date.now(), coords: { ...fallbackFix.coords, accuracy: 65 } });
-      success({ ...fallbackFix, timestamp: Date.now(), mocked: true });
-    });
-    return 1000;
+it('accepts a fresh balanced fix without turning on high accuracy', async () => {
+  bridge.position.mockResolvedValueOnce({
+    ...fallbackFix,
+    timestamp: Date.now(),
+    mocked: true,
   });
   const mocked = vi.fn();
   await expect(captureForegroundLocation(limits, mocked)).resolves.toMatchObject({ accuracy: 18 });
-  expect(bridge.clearWatch).toHaveBeenCalledExactlyOnceWith(1000);
+  expect(bridge.position).toHaveBeenCalledExactlyOnceWith(expect.any(Number), false, 15_000, 20);
+  expect(bridge.cancel).toHaveBeenCalledExactlyOnceWith(bridge.position.mock.calls[0][0]);
   expect(mocked).toHaveBeenCalledExactlyOnceWith(true);
 });
 
-it('uses the best acceptable GPS fix when the capture window expires', async () => {
+it('falls back to high accuracy after a balanced timeout and accepts a slow GPS fix', async () => {
   vi.useFakeTimers();
   try {
-    bridge.position.mockImplementationOnce((success) => {
-      for (const accuracy of [80, 34, 56]) {
-        success({ timestamp: Date.now(), coords: { ...fallbackFix.coords, accuracy } });
-      }
-      return 1000;
+    bridge.position.mockReturnValueOnce(new Promise(() => {}));
+    bridge.position.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => resolve({ ...fallbackFix, timestamp: Date.now() }), 32_000);
+        }),
+    );
+    const progress = vi.fn();
+    const result = captureForegroundLocation(limits, undefined, {
+      onProgress: progress,
     });
-    const capture = captureForegroundLocation(limits);
-    await vi.advanceTimersByTimeAsync(15_000);
-    await expect(capture).resolves.toMatchObject({ accuracy: 34 });
-    expect(bridge.clearWatch).toHaveBeenCalledExactlyOnceWith(1000);
+    await vi.advanceTimersByTimeAsync(48_000);
+    await expect(result).resolves.toMatchObject({ accuracy: 18 });
+    expect(bridge.position.mock.calls[1]).toEqual([expect.any(Number), true, 35_000, 20]);
+    expect(bridge.cancel).toHaveBeenCalledTimes(2);
+    expect(progress).toHaveBeenCalledWith('Improving location accuracy');
+    expect(bridge.cached).not.toHaveBeenCalled();
   } finally {
     vi.useRealTimers();
   }
 });
 
+it('uses the original timestamp when recovering from recent device cache', async () => {
+  const timestamp = Date.now() - 10_000;
+  bridge.position.mockRejectedValue({ code: 'timeout' });
+  bridge.cached.mockResolvedValueOnce([
+    { ...fallbackFix, timestamp: Date.now() - 31_000 },
+    { coords: { ...fallbackFix.coords, accuracy: 110 }, timestamp },
+    { coords: { ...fallbackFix.coords, accuracy: 60 }, timestamp },
+  ]);
+  await expect(captureForegroundLocation(limits)).resolves.toMatchObject({
+    accuracy: 60,
+    capturedAt: new Date(timestamp).toISOString(),
+  });
+});
+
+it('keeps a still-fresh acceptable balanced reading if high accuracy fails', async () => {
+  const position = {
+    coords: { ...fallbackFix.coords, accuracy: 65 },
+    timestamp: Date.now(),
+  };
+  bridge.position.mockResolvedValueOnce(position).mockRejectedValueOnce({ code: 'timeout' });
+  await expect(captureForegroundLocation(limits)).resolves.toMatchObject({
+    accuracy: 65,
+    capturedAt: new Date(position.timestamp).toISOString(),
+  });
+  expect(bridge.position).toHaveBeenCalledTimes(2);
+  expect(bridge.cached).not.toHaveBeenCalled();
+});
+
+it('rejects stale, inaccurate and invalid fixes and explains insufficient approximate accuracy', async () => {
+  bridge.position.mockRejectedValue({ code: 'timeout' });
+  bridge.cached.mockResolvedValueOnce([{ ...fallbackFix, timestamp: Date.now() - 45_000 }]);
+  await expect(captureForegroundLocation(limits)).rejects.toThrow('too old');
+  const invalid = {
+    coords: { ...fallbackFix.coords, latitude: 150 },
+    timestamp: Date.now(),
+  };
+  bridge.cached.mockResolvedValueOnce([invalid]);
+  await expect(captureForegroundLocation(limits)).rejects.toThrow('accuracy is too low');
+  bridge.permissions.mockResolvedValueOnce({
+    fine: 'denied',
+    coarse: 'granted',
+  });
+  bridge.cached.mockResolvedValueOnce([
+    { coords: { ...fallbackFix.coords, accuracy: 101 }, timestamp: Date.now() },
+  ]);
+  await expect(captureForegroundLocation(limits)).rejects.toThrow('Approximate location');
+});
+
+it('cancels the native request and skips retries when leaving the screen', async () => {
+  bridge.position.mockImplementationOnce(() => new Promise(() => {}));
+  const controller = new AbortController();
+  const capture = captureForegroundLocation(limits, undefined, {
+    signal: controller.signal,
+  });
+  const assertion = expect(capture).rejects.toThrow('Location capture stopped');
+  await vi.waitFor(() => expect(bridge.position).toHaveBeenCalledTimes(1));
+  controller.abort();
+  await assertion;
+  expect(bridge.cancel).toHaveBeenCalledExactlyOnceWith(bridge.position.mock.calls[0][0]);
+  expect(bridge.cached).not.toHaveBeenCalled();
+});
 it('computes an elapsed clock from the server times across midnight', () => {
   expect(elapsedClock('2026-11-24T18:01:00Z', Date.parse('2026-11-25T01:05:07Z'))).toBe('07:04:07');
   expect(elapsedClock('2026-11-24T18:01:00Z', Date.parse('2026-11-24T18:00:00Z'))).toBe('00:00:00');
@@ -151,10 +209,15 @@ it('stores the rotating credential securely and restores an active shift from th
     .mockResolvedValueOnce(reply({}));
   vi.stubGlobal('fetch', fetcher);
   await loginEmployee('EMP0001', 'password');
-  expect(JSON.parse(bridge.credentials.current)).toEqual({ token: 'initial', user: session.user });
+  expect(JSON.parse(bridge.credentials.current)).toEqual({
+    token: 'initial',
+    user: session.user,
+  });
   await restoreMobileSession();
   expect(JSON.parse(bridge.credentials.current).token).toBe('rotated');
-  await expect(mobileAttendance.current()).resolves.toMatchObject({ attendance: { id: 'shift' } });
+  await expect(mobileAttendance.current()).resolves.toMatchObject({
+    attendance: { id: 'shift' },
+  });
   expect(fetcher.mock.calls[2][1].headers.Authorization).toBe('Bearer bearer');
   await mobileAttendance.history(2, '2026-11-01', '2026-11-24');
   expect(fetcher.mock.calls[3][0]).toContain('page=2&from=2026-11-01&to=2026-11-24');
@@ -180,7 +243,10 @@ it('preserves the request key and coordinates on a network retry and submits che
   });
   expect(fetcher.mock.calls[0][1].body).toBe(fetcher.mock.calls[1][1].body);
   await expect(
-    mobileAttendance.submit('check-out', { ...input, attendanceId: '0123456789abcdef01234567' }),
+    mobileAttendance.submit('check-out', {
+      ...input,
+      attendanceId: '0123456789abcdef01234567',
+    }),
   ).resolves.toMatchObject({ status: 'CHECKED_OUT', workingMinutes: 32 });
   expect(fetcher.mock.calls[2][0]).toContain('/check-out');
 });

@@ -42,6 +42,7 @@ export type CurrentAttendance = {
   timezone: string;
   serverTime: string;
   attendance: AttendanceRecord | null;
+  checkoutDeadline?: string;
   limits: { preferredAccuracy: number; maximumAccuracy: number; maximumAgeSeconds: number };
 };
 export type AttendanceStats = {

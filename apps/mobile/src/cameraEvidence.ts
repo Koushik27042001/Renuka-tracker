@@ -30,6 +30,8 @@ function waitForForeground() {
 export async function captureVisitPhoto(
   limits: CurrentAttendance['limits'],
   isOpen = () => true,
+  signal?: AbortSignal,
+  onProgress?: (message: string) => void,
 ): Promise<Capture | undefined> {
   if (AppState.currentState !== 'active') throw new Error('Open the app before taking a selfie.');
   await requestCameraPermission();
@@ -55,13 +57,22 @@ export async function captureVisitPhoto(
       return;
     }
     let mockLocation = false;
-    const location = await captureForegroundLocation(limits, (value) => {
-      mockLocation = value;
-    });
+    const location = await captureForegroundLocation(
+      limits,
+      (value) => {
+        mockLocation = value;
+      },
+      { signal, onProgress },
+    );
     if (!isOpen()) {
       cleanCapture(photo.uri);
       return;
     }
+    if (
+      Math.abs(Date.parse(location.capturedAt) - Date.parse(capturedAt)) >
+      limits.maximumAgeSeconds * 1000
+    )
+      throw new Error('The location was acquired too far from the photo time. Retake the selfie.');
     return {
       uri: photo.uri,
       type: photo.type ?? 'image/jpeg',

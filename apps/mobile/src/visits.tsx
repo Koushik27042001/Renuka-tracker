@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { colors } from './theme';
 import {
   ActivityIndicator,
@@ -475,6 +476,9 @@ export function VisitCamera({
     queryFn: ({ signal }) => detail(id, signal),
   });
   const [capture, setCapture] = useState<Capture>();
+  const locationRequest = useRef<AbortController>(null);
+  const [locationProgress, setLocationProgress] = useState('');
+  useFocusEffect(useCallback(() => () => locationRequest.current?.abort(), []));
   const current = useRef<Capture | undefined>(undefined);
   const lock = useRef(false);
   const mounted = useRef(true);
@@ -504,11 +508,25 @@ export function VisitCamera({
   }
   async function take() {
     await act(async () => {
-      const photo = await captureVisitPhoto(limits, () => mounted.current);
-      if (!photo) return;
-      cleanCapture(current.current?.uri);
-      current.current = photo;
-      setCapture(photo);
+      const request = new AbortController();
+      locationRequest.current = request;
+      try {
+        const photo = await captureVisitPhoto(
+          limits,
+          () => mounted.current && !request.signal.aborted,
+          request.signal,
+          setLocationProgress,
+        );
+        if (!photo) return;
+        cleanCapture(current.current?.uri);
+        current.current = photo;
+        setCapture(photo);
+      } catch (error) {
+        if (!request.signal.aborted) throw error;
+      } finally {
+        locationRequest.current = null;
+        if (mounted.current) setLocationProgress('');
+      }
     });
   }
   async function upload() {
@@ -563,7 +581,7 @@ export function VisitCamera({
         <View style={visitStyles.progress}>
           <ActivityIndicator color={colors.hunter} />
           <Text accessibilityLiveRegion="polite" style={styles.muted}>
-            {existing.isPending ? 'Loading visit photo…' : 'Working on visit photo…'}
+            {existing.isPending ? 'Loading visit photo…' : locationProgress || 'Working on visit photo…'}
           </Text>
         </View>
       )}

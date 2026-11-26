@@ -42,8 +42,8 @@ export function attendanceService(models: Models, config: Config, clock = () => 
     day: '2-digit',
   });
   const day = (date: Date) => format.format(date);
-  const limit = (now: Date) =>
-    new Date(now.getTime() - config.ATTENDANCE_MAX_SHIFT_HOURS * 3600_000);
+  const shiftWindowMs = config.ATTENDANCE_MAX_SHIFT_HOURS * 3600_000;
+  const limit = (now: Date) => new Date(now.getTime() - shiftWindowMs);
   function fix(
     point?: AttendanceData['checkOutLocation'],
     accuracy?: number | null,
@@ -299,11 +299,15 @@ export function attendanceService(models: Models, config: Config, clock = () => 
           .findOne({ employeeId, $or: [{ attendanceDate }, { checkOutDate: attendanceDate }] })
           .sort({ checkInTime: -1, _id: -1 })
           .lean());
+      const record = row ? serialize(row, now) : null;
       return {
         attendanceDate,
         timezone,
         serverTime: now.toISOString(),
-        attendance: row ? serialize(row, now) : null,
+        attendance: record,
+        ...(row && record?.status === 'CHECKED_IN'
+          ? { checkoutDeadline: new Date(row.checkInTime.getTime() + shiftWindowMs).toISOString() }
+          : {}),
         limits: {
           preferredAccuracy: config.ATTENDANCE_PREFERRED_ACCURACY,
           maximumAccuracy: config.ATTENDANCE_MAX_ACCURACY,

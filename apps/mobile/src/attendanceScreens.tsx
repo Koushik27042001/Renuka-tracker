@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   AppState,
   Linking,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -26,7 +27,7 @@ import { MobileApiError, mobileAttendance } from './api';
 import { MobileVisitSummary } from './MobileVisitSummary';
 import { cacheOfflineShift } from './offlineStore';
 import { uniqueId } from './requestId';
-import { captureForegroundLocation } from './foregroundLocation';
+import { captureForegroundLocation, isFreshLocation } from './foregroundLocation';
 import { elapsedClock, formatShiftTime } from './attendanceTime';
 
 export type AttendanceStack = {
@@ -184,6 +185,15 @@ export function AttendanceHome({
   useEffect(() => {
     if (data) void cacheOfflineShift(employee.id, data).catch(() => undefined);
   }, [employee.id, data]);
+  const checkoutDeadline = data?.checkoutDeadline;
+  const serverTime = data?.serverTime;
+  useEffect(() => {
+    if (!checkoutDeadline || !serverTime) return;
+    const remaining = Date.parse(checkoutDeadline) - Date.parse(serverTime);
+    const refreshAt = current.dataUpdatedAt + remaining;
+    const timer = setTimeout(() => void refetch(), Math.max(0, refreshAt - Date.now()));
+    return () => clearTimeout(timer);
+  }, [checkoutDeadline, serverTime, current.dataUpdatedAt, refetch]);
   const row = data?.attendance;
   const checkedIn = row?.status === 'CHECKED_IN';
   async function logout() {
@@ -243,6 +253,11 @@ export function AttendanceHome({
             <Text style={styles.muted}>
               Checkout {formatShiftTime(row?.checkOutTime ?? null, row?.timezone ?? data.timezone)}
             </Text>
+            {checkedIn && checkoutDeadline && (
+              <Text style={styles.muted}>
+                Check out before {formatShiftTime(checkoutDeadline, data.timezone)}
+              </Text>
+            )}
             {checkedIn && row ? (
               <Action
                 title="Check out"
@@ -306,30 +321,47 @@ export function ShiftScreen(
   const { limits } = props.route.params;
   const query = useQueryClient();
   const lock = useRef(false);
+  const locationRequest = useRef<AbortController>(null);
   const [fix, setFix] = useState<AttendanceLocation>();
   const [pending, setPending] = useState<AttendanceSubmission>();
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [locationProgress, setLocationProgress] = useState('');
   const [confirmed, setConfirmed] = useState<AttendanceRecord>();
   const title = checkout ? 'checkout' : 'check-in';
+  useFocusEffect(useCallback(() => () => locationRequest.current?.abort(), []));
 
   async function capture() {
     if (lock.current || pending) return;
     lock.current = true;
+    const request = new AbortController();
+    locationRequest.current = request;
     setBusy(true);
     setFix(undefined);
     setMessage('');
     try {
-      setFix(await captureForegroundLocation(limits));
+      const result = await captureForegroundLocation(limits, undefined, {
+        signal: request.signal,
+        onProgress: setLocationProgress,
+      });
+      if (!request.signal.aborted) setFix(result);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not obtain a location.');
+      if (!request.signal.aborted)
+        setMessage(error instanceof Error ? error.message : 'Could not obtain a location.');
     } finally {
+      locationRequest.current = null;
       lock.current = false;
+      setLocationProgress('');
       setBusy(false);
     }
   }
   async function submit() {
     if (lock.current || !fix) return;
+    if (!pending && !isFreshLocation(Date.parse(fix.capturedAt), limits.maximumAgeSeconds)) {
+      setFix(undefined);
+      setMessage('This location reading has expired. Retry location before confirming.');
+      return;
+    }
     const payload: AttendanceSubmission = pending ?? {
       location: fix,
       idempotencyKey: uniqueId(),
@@ -380,7 +412,9 @@ export function ShiftScreen(
               <Text style={styles.label}>
                 {fix.latitude.toFixed(6)}, {fix.longitude.toFixed(6)}
               </Text>
-              <Text style={styles.muted}>Accuracy ±{Math.round(fix.accuracy)} m</Text>
+              <Text style={styles.muted}>
+                Location captured · Accuracy ±{Math.round(fix.accuracy)} m
+              </Text>
               {fix.accuracy > limits.preferredAccuracy && (
                 <Text style={styles.muted}>You can capture again for a more precise reading.</Text>
               )}
@@ -393,13 +427,16 @@ export function ShiftScreen(
             </Text>
           )}
           {busy && (
-            <ActivityIndicator
-              accessibilityLabel={pending ? 'Submitting attendance' : 'Capturing location'}
-            />
+            <View>
+              <ActivityIndicator color={colors.hunter} />
+              <Text accessibilityLiveRegion="polite" style={styles.muted}>
+                {pending ? 'Submitting attendance' : locationProgress}
+              </Text>
+            </View>
           )}
           {!pending && (
             <Action
-              title={fix ? 'Capture again' : 'Capture location'}
+              title={fix ? 'Capture again' : message ? 'Retry location' : 'Capture location'}
               onPress={() => void capture()}
               disabled={busy}
               secondary={!!fix}
@@ -413,10 +450,15 @@ export function ShiftScreen(
               disabled={busy}
             />
           )}
-          {!fix && message && (
+          {!fix && /permission|precise|Location Services/i.test(message) && (
             <Action
               title="Open settings"
-              onPress={() => void Linking.openSettings().catch(() => undefined)}
+              onPress={() =>
+                void (Platform.OS === 'android' && message.includes('Location Services')
+                  ? Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS')
+                  : Linking.openSettings()
+                ).catch(() => undefined)
+              }
               secondary
             />
           )}

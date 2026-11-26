@@ -1,0 +1,6 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/renuka_launch_red" />
+    <item>
+        <bitmap android:src="@drawable/renuka_launch_logo" android:gravity="center" />
+    </item>
+</layer-list>

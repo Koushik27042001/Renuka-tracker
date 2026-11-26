@@ -173,13 +173,15 @@ it('supports overnight shifts and replays a saved request after its GPS fix has 
   const current = await service.current(actor);
   expect(current.attendanceDate).toBe('2026-11-24');
   expect(current.attendance?.id).toBe(attendance.id);
+  expect(current.checkoutDeadline).toBe('2026-11-24T13:45:00.000Z');
   expect((await service.checkIn(actor, first, context)).replayed).toBe(true);
+  now = new Date('2026-11-24T13:44:59.999Z');
   const result = await service.checkOut(
     actor,
     { ...payload(now), attendanceId: attendance.id },
     context,
   );
-  expect(result.attendance.workingMinutes).toBe(330);
+  expect(result.attendance.workingMinutes).toBe(1199);
   expect(result.attendance.attendanceDate).toBe('2026-11-23');
 });
 
@@ -230,4 +232,25 @@ it('returns a safe 503 when database access is unavailable', async () => {
       expect(body).toMatchObject({ success: false, message: 'Service temporarily unavailable' });
       expect(body).not.toHaveProperty('stack');
     });
+});
+
+it('expires checkout at exactly 20 hours and permits a new check-in', async () => {
+  const actor = ids.EMP0004;
+  let now = new Date('2026-11-25T10:00:00Z');
+  const service = attendanceService(models, config, () => now);
+  const context = { requestId: 'shift-expiry-test' };
+  const { attendance } = await service.checkIn(actor, payload(now), context);
+
+  now = new Date('2026-11-26T06:00:00Z');
+  const current = await service.current(actor);
+  expect(current.attendance?.status).toBe('INCOMPLETE');
+  expect(current.checkoutDeadline).toBeUndefined();
+  await expect(
+    service.checkOut(actor, { ...payload(now), attendanceId: attendance.id }, context),
+  ).rejects.toMatchObject({ status: 409 });
+
+  const next = await service.checkIn(actor, payload(now), context);
+  expect(next.attendance.status).toBe('CHECKED_IN');
+  expect(next.attendance.id).not.toBe(attendance.id);
+  expect((await service.ownDetail(actor, attendance.id)).status).toBe('INCOMPLETE');
 });

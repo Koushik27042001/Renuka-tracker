@@ -74,10 +74,10 @@ const schema = z.object({
   OFFLINE_SYNC_MAX_RETRIES: bounded(8, 1, 12),
   OFFLINE_EVIDENCE_MAX_DELAY_HOURS: bounded(24, 1, 48),
 
-  ATTENDANCE_PREFERRED_ACCURACY: bounded(20, 1, 500),
+  ATTENDANCE_PREFERRED_ACCURACY: bounded(50, 1, 500),
   ATTENDANCE_MAX_ACCURACY: bounded(100, 1, 1000),
   ATTENDANCE_MAX_LOCATION_AGE_SECONDS: bounded(30, 5, 120),
-  ATTENDANCE_MAX_SHIFT_HOURS: bounded(24, 12, 48),
+  ATTENDANCE_MAX_SHIFT_HOURS: bounded(20, 12, 48),
   CLOUDINARY_URL: z
     .string()
     .regex(/^cloudinary:\/\/[^\s]+$/)

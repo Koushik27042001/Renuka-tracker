@@ -1,0 +1,10 @@
+<resources>
+    <style name="LaunchTheme" parent="AppTheme">
+        <item name="android:windowBackground">@color/renuka_launch_red</item>
+        <item name="android:windowSplashScreenBackground">@color/renuka_launch_red</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/rss_launcher</item>
+        <item name="android:statusBarColor">@color/renuka_launch_red</item>
+        <item name="android:navigationBarColor">@color/renuka_launch_red</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

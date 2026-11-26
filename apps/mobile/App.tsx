@@ -2,7 +2,7 @@ import 'react-native-get-random-values';
 import { VisitCamera, VisitDetail, VisitDraft, VisitHistory } from './src/visits';
 import { colors, homeColors } from './src/theme';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StatusBar, Text, TextInput, View } from 'react-native';
+import { Image, StatusBar, Text, TextInput, View } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
@@ -21,6 +21,7 @@ import {
   MobileApiError,
   loginEmployee,
   logoutEmployee,
+  mobileAttendance,
   onSessionInvalid,
   restoreMobileSession,
 } from './src/api';
@@ -39,6 +40,28 @@ const client = new QueryClient({
   defaultOptions: { queries: { retry: false } },
 });
 type Employee = Awaited<ReturnType<typeof loginEmployee>>;
+
+function LaunchScreen() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: homeColors.red,
+      }}
+    >
+      <StatusBar barStyle="light-content" />
+      <Image
+        source={require('./assets/cropped-LogoRenuka.jpg')}
+        style={{ width: 200, height: 152, backgroundColor: colors.white }}
+        resizeMode="contain"
+        accessibilityLabel="Renuka Safety Solutions"
+        accessible
+      />
+    </View>
+  );
+}
 
 function SessionApp() {
   const navigation = useNavigationContainerRef<AttendanceStack>();
@@ -68,7 +91,15 @@ function SessionApp() {
     setRestoring(true);
     setRestoreError('');
     try {
-      setEmployee((await restoreMobileSession())?.user ?? null);
+      const restored = (await restoreMobileSession())?.user ?? null;
+      setEmployee(restored);
+      if (restored) {
+        await client.prefetchQuery({
+          queryKey: ['attendance', 'current'],
+          queryFn: ({ signal }) => mobileAttendance.current(signal),
+          networkMode: 'always',
+        });
+      }
     } catch (error) {
       if (error instanceof MobileApiError && error.status === 0) {
         const cached = await cachedEmployee();
@@ -103,6 +134,7 @@ function SessionApp() {
       setEntering(false);
     }
   }
+  if (restoring) return <LaunchScreen />;
   if (release.data?.updateRequired)
     return (
       <SafeAreaView style={{ flex: 1 }}>
@@ -112,9 +144,7 @@ function SessionApp() {
   if (!employee)
     return (
       <SignInLayout>
-        {restoring ? (
-          <ActivityIndicator accessibilityLabel="Restoring session" />
-        ) : restoreError ? (
+        {restoreError ? (
           <Problem message={restoreError} retry={() => void restore()} />
         ) : (
           <View style={signInStyles.form}>

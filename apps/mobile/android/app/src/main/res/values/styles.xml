@@ -6,4 +6,13 @@
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     </style>
 
+    <color name="renuka_launch_red">#A61E32</color>
+
+    <style name="LaunchTheme" parent="AppTheme">
+        <item name="android:windowBackground">@drawable/renuka_launch_screen</item>
+        <item name="android:statusBarColor">@color/renuka_launch_red</item>
+        <item name="android:navigationBarColor">@color/renuka_launch_red</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
 </resources>

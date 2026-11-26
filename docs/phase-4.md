@@ -9,10 +9,10 @@ For Android, use the SDK, NDK and JDK described in the [Phase 1 guide](phase-1.m
 | Setting | Default |
 | --- | --- |
 | `BUSINESS_TIMEZONE` | `Asia/Kolkata` |
-| `ATTENDANCE_PREFERRED_ACCURACY` | 20 metres |
+| `ATTENDANCE_PREFERRED_ACCURACY` | 50 metres |
 | `ATTENDANCE_MAX_ACCURACY` | 100 metres |
 | `ATTENDANCE_MAX_LOCATION_AGE_SECONDS` | 30 |
-| `ATTENDANCE_MAX_SHIFT_HOURS` | 24 |
+| `ATTENDANCE_MAX_SHIFT_HOURS` | 20 |
 
 ## Attendance lifecycle
 
@@ -20,9 +20,13 @@ Server UTC time controls check-in, checkout and working minutes. GPS timestamps 
 
 A partial unique index enforces one active session per employee. Two further unique indexes scope request keys by employee and attendance action. Reusing the same UUID and payload returns the existing record, including after the fix ages. Reusing the key with different content returns HTTP 409. Checkout from the mobile app uses the active attendance ID, which protects a newer session from a delayed retry. The app retains uncertain submissions on the active screen and reconciles the current session from the server after restart. Persistent offline submissions are part of Phase 8.
 
-Open sessions older than the maximum shift duration are reported as incomplete. A new check-in persists that incomplete state before creating a new session. Incomplete sessions receive no credited minutes or checkout location. Statistics count distinct employees for on-duty and checkout-today cards. The not-checked-in card counts active employees without today's check-in, an ongoing shift, or today's checkout. Incomplete counts cover all available records. Summary cards are independent of the table filters.
+With the default 20-hour window, employees can check out any time before 20 hours have elapsed from check-in, including across midnight. The mobile app shows the checkout deadline. Open sessions become incomplete at the deadline, and a new check-in persists that state before creating a new session. Incomplete sessions receive no credited minutes or checkout location. Statistics count distinct employees for on-duty and checkout-today cards. The not-checked-in card counts active employees without today's check-in, an ongoing shift, or today's checkout. Incomplete counts cover all available records. Summary cards are independent of the table filters.
 
 Employees can access their own records. ADMIN reports and exports use the employee's current department, and SUPER_ADMIN can see all departments. GPS coordinates appear on authorized detail screens. Reports, general logs and CSV avoid coordinates. Android uses precise and coarse foreground permissions, and iOS displays the when-in-use permission prompt. Location is requested only from the explicit capture button. The working timer updates from server time while focused and refreshes the server snapshot on resume. Mobile refresh credentials use Keychain or Keystore-backed storage.
+
+## Android location capture
+
+Android location capture starts with a 15-second balanced request and retries with up to 35 seconds of high accuracy. Devices without Google Play Services use Android's location providers. A cached reading can be used only if it meets the configured limits and is no more than 30 seconds old. The app keeps its original timestamp. Attendance confirmation still requires access to the API. Existing offline visit drafts continue to use the visit sync queue.
 
 ## API
 

@@ -180,7 +180,7 @@ export function OfflineQueue({
     });
     if (!parsed.success) throw new Error('Enter a client or place and a valid visit purpose.');
     const signal = lifetime.current.signal;
-    const photo = await captureVisitPhoto(shift.limits, () => !signal.aborted);
+    const photo = await captureVisitPhoto(shift.limits, () => !signal.aborted, signal);
     if (!photo) return;
     try {
       const capturedAt = (photo.metadata as { capturedAt: string }).capturedAt;

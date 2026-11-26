@@ -2037,6 +2037,11 @@
                           "type": "string",
                           "format": "date-time"
                         },
+                        "checkoutDeadline": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "Exclusive checkout cutoff for the active session. Omitted when no session is active."
+                        },
                         "attendance": {
                           "anyOf": [
                             {
