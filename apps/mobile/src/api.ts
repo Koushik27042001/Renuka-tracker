@@ -25,6 +25,7 @@ export class MobileApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public retryAfterMs?: number,
   ) {
     super(message);
   }
@@ -102,8 +103,17 @@ async function request<T>(
     });
     if (response.ok && options.binary) return response as unknown as T;
     const result = await response.json();
-    if (!response.ok)
-      throw new MobileApiError(response.status, result.message ?? 'The request failed.');
+    if (!response.ok) {
+      const retryAfter = response.headers.get('Retry-After');
+      const retryAfterMs = retryAfter && /^\d+$/.test(retryAfter)
+        ? Number(retryAfter) * 1000
+        : undefined;
+      throw new MobileApiError(
+        response.status,
+        result.message ?? 'The request failed.',
+        Number.isFinite(retryAfterMs) ? retryAfterMs : undefined,
+      );
+    }
     return result.data as T;
   } catch (error) {
     if (error instanceof MobileApiError) throw error;

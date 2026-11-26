@@ -42,12 +42,13 @@ const call = (method: 'get' | 'post' | 'patch' | 'delete', path: string, actor =
   request(app)
     [method](api + path)
     .auth(tokens[actor], { type: 'bearer' });
-const config = () =>
+const config = (overrides: NodeJS.ProcessEnv = {}) =>
   readConfig({
     NODE_ENV: 'test',
     MONGODB_URI: 'mongodb://localhost/test_dummy',
     JWT_ACCESS_SECRET: randomBytes(48).toString('base64url'),
     LOG_LEVEL: 'silent',
+    ...overrides,
   });
 const date = () => dayFormat('Asia/Kolkata').format(new Date());
 const position = () => ({
@@ -191,6 +192,19 @@ it('uses configured geocoding, caches successful responses and falls back withou
     vi.unstubAllGlobals();
     clock.mockRestore();
   }
+});
+
+it('allows an opt-in local geocoder in development and requires HTTPS in production', () => {
+  const settings = {
+    GEOCODING_REVERSE_URL: 'http://127.0.0.1:8088/reverse',
+    GEOCODING_USER_AGENT: 'Renuka Tracker local',
+    GEOCODING_ATTRIBUTION: '© OpenStreetMap contributors',
+  };
+  expect(config(settings).GEOCODING_ATTRIBUTION).toBe(settings.GEOCODING_ATTRIBUTION);
+  expect(() => config({ ...settings, NODE_ENV: 'production' })).toThrow('Geocoding requires HTTPS');
+  expect(() => config({ ...settings, GEOCODING_REVERSE_URL: 'http://geo.example.test/reverse' }))
+    .toThrow('Geocoding requires HTTPS');
+  expect(() => config({ ...settings, GEOCODING_USER_AGENT: '' })).toThrow('GEOCODING_USER_AGENT');
 });
 
 it('reserves an owned draft during attendance and rejects invalid or missing evidence', async () => {

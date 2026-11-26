@@ -89,9 +89,10 @@ const schema = z.object({
     .string()
     .regex(/^[A-Za-z0-9_/-]+$/)
     .default('fieldforce/evidence'),
-  GEOCODING_REVERSE_URL: z.url({ protocol: /^https$/ }).optional(),
+  GEOCODING_REVERSE_URL: z.url({ protocol: /^https?$/ }).optional(),
   GEOCODING_USER_AGENT: z.string().min(8).optional(),
   GEOCODING_API_KEY: z.string().min(1).optional(),
+  GEOCODING_ATTRIBUTION: z.string().trim().min(1).max(160).optional(),
   MONGODB_URI: z.string().regex(/^mongodb(?:\+srv)?:\/\/[^\s]+$/),
   MONGODB_CONNECT_TIMEOUT_MS: bounded(8000, 250, 30000),
   JWT_ACCESS_SECRET: z
@@ -131,6 +132,7 @@ export function readConfig(env: NodeJS.ProcessEnv) {
     GEOCODING_REVERSE_URL: env.GEOCODING_REVERSE_URL || undefined,
     GEOCODING_USER_AGENT: env.GEOCODING_USER_AGENT || undefined,
     GEOCODING_API_KEY: env.GEOCODING_API_KEY || undefined,
+    GEOCODING_ATTRIBUTION: env.GEOCODING_ATTRIBUTION || undefined,
     ADMIN_ORIGINS: env.ADMIN_ORIGINS ?? env.ADMIN_WEB_ORIGIN,
     EMPLOYEE_WEB_ORIGINS: env.EMPLOYEE_WEB_ORIGINS,
   });
@@ -139,6 +141,20 @@ export function readConfig(env: NodeJS.ProcessEnv) {
     throw new Error('Invalid environment configuration: ' + fields);
   }
   const config = result.data;
+  if (config.GEOCODING_REVERSE_URL) {
+    const endpoint = new URL(config.GEOCODING_REVERSE_URL);
+    const localDevelopment =
+      config.NODE_ENV !== 'production' &&
+      ['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname);
+    if (
+      endpoint.username ||
+      endpoint.password ||
+      (endpoint.protocol !== 'https:' && !localDevelopment)
+    )
+      throw new Error('Geocoding requires HTTPS, except for a local development endpoint');
+    if (!config.GEOCODING_USER_AGENT)
+      throw new Error('Set GEOCODING_USER_AGENT when geocoding is enabled');
+  }
   if (
     !config.CLOUDINARY_URL &&
     [config.CLOUDINARY_CLOUD_NAME, config.CLOUDINARY_API_KEY, config.CLOUDINARY_API_SECRET].filter(

@@ -33,7 +33,7 @@ export function attendanceRoutes(
   routes.use(authenticate);
   const employee = authorize('EMPLOYEE');
   const admin = authorize('ADMIN', 'SUPER_ADMIN');
-  const submissionLimit = limiter(20, 60_000);
+  const submissionLimit = limiter(20, 60_000, (req) => requireAuth(req).sub);
   routes.post(
     '/check-in',
     employee,

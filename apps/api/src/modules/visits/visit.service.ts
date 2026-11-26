@@ -412,6 +412,7 @@ export function visitService(
           address.address
             ? (accuracy > 50 ? 'Approximate area: ' : 'Mapped address: ') + address.address
             : 'Address unavailable',
+          ...(address.address && config.GEOCODING_ATTRIBUTION ? [config.GEOCODING_ATTRIBUTION] : []),
           (input.source === 'gallery' ? 'Gallery photo attached ' : 'Captured ') +
             new Intl.DateTimeFormat('en-IN', {
               timeZone: config.BUSINESS_TIMEZONE,

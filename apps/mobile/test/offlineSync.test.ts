@@ -16,6 +16,7 @@ vi.mock('../src/api', () => ({
     constructor(
       public status: number,
       message: string,
+      public retryAfterMs?: number,
     ) {
       super(message);
     }
@@ -81,4 +82,11 @@ it('avoids requests in the background and pauses when the original owner cannot 
   await syncOfflineDrafts('owner', signal);
   expect(mock.persist).not.toHaveBeenCalled();
   expect(mock.capture).not.toHaveBeenCalled();
+});
+
+it('waits at least the retry interval requested by the server when uploads are busy', async () => {
+  mock.capture.mockRejectedValueOnce(new MobileApiError(429, 'Uploads are busy', 5000));
+  const now = Date.now();
+  await syncOfflineDrafts('owner', new AbortController().signal);
+  expect(mock.persist.mock.calls.at(-1)?.[1].retryAt).toBeGreaterThanOrEqual(now + 5000);
 });

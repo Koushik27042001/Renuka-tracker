@@ -1,0 +1,15 @@
+services:
+  nominatim:
+    image: mediagis/nominatim:5.3
+    shm_size: 1gb
+    ports:
+      - "127.0.0.1:8088:8080"
+    environment:
+      PBF_URL: ${NOMINATIM_PBF_URL:?Set NOMINATIM_PBF_URL to the map extract for your service area}
+      NOMINATIM_PASSWORD: ${NOMINATIM_PASSWORD:?Set a database password for Nominatim}
+      REVERSE_ONLY: "true"
+      IMPORT_STYLE: address
+    volumes:
+      - nominatim-data:/var/lib/postgresql/16/main
+volumes:
+  nominatim-data:

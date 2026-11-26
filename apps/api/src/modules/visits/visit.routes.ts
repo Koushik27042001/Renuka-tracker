@@ -35,13 +35,27 @@ const receive = multer({
 }).single('image');
 let receiving = 0;
 const upload: RequestHandler = (req, res, next) => {
-  if (receiving >= 4)
+  if (receiving >= 4) {
+    res.set('Retry-After', '5');
     return next(new AppError(429, 'Evidence uploads are busy. Try again shortly.'));
+  }
   receiving++;
-  res.once('close', () => {
+  let released = false;
+  let processing = false;
+  const release = () => {
+    if (released) return;
+    released = true;
     receiving--;
+  };
+  res.locals.startEvidenceProcessing = () => {
+    processing = true;
+    return release;
+  };
+  res.once('close', () => {
+    if (!processing) release();
   });
   receive(req, res, (error) => {
+    if (res.destroyed) return;
     if (error instanceof multer.MulterError)
       return next(
         new AppError(
@@ -183,7 +197,7 @@ export function visitRoutes(
   routes.post(
     '/:id/evidence',
     employee,
-    limiter(12, 60_000),
+    limiter(12, 60_000, (req) => requireAuth(req).sub),
     upload,
     validateRequest({ params }, async ({ params }, req, res) => {
       if (!req.file || !['image/jpeg', 'image/png'].includes(req.file.mimetype))
@@ -194,14 +208,19 @@ export function visitRoutes(
       } catch {
         throw new AppError(400, 'Evidence metadata must be valid JSON.');
       }
-      const visit = await service.upload(
-        visitActor(req),
-        params.id,
-        parse(evidenceInput, raw),
-        req.file.buffer,
-        auditContext(req),
-      );
-      success(res, 'Evidence stored', { visit });
+      const release = res.locals.startEvidenceProcessing();
+      try {
+        const visit = await service.upload(
+          visitActor(req),
+          params.id,
+          parse(evidenceInput, raw),
+          req.file.buffer,
+          auditContext(req),
+        );
+        success(res, 'Evidence stored', { visit });
+      } finally {
+        release();
+      }
     }),
   );
   routes.post(

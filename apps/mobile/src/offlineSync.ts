@@ -68,13 +68,15 @@ export async function syncOfflineDrafts(
       const retryable =
         error instanceof MobileApiError &&
         (error.status === 0 || error.status === 429 || error.status >= 500);
+      const delay = Math.min(300_000, 3000 * 2 ** Math.min(failed, 7));
+      const retryAfter = error instanceof MobileApiError ? (error.retryAfterMs ?? 0) : 0;
       const next: OfflineDraft = {
         ...draft,
         attempts: failed + 1,
         manuallyRetryable: retryable,
         retryAt:
           retryable && failed + 1 < maxAttempts
-            ? Date.now() + Math.min(300_000, 3000 * 2 ** Math.min(failed, 7))
+            ? Date.now() + Math.max(delay, retryAfter) + Math.floor(Math.random() * delay * 0.25)
             : undefined,
         problem: error instanceof Error ? error.message : 'Sync failed.',
       };

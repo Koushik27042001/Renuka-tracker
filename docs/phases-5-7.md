@@ -12,10 +12,39 @@ From the workspace root, run `npm ci`, `npm run build:api` and `npm run db:index
 | `GEOCODING_REVERSE_URL` | HTTPS Nominatim-compatible reverse endpoint. Set this and `GEOCODING_USER_AGENT` on the API service to include mapped addresses on new photos. Use an organization-approved provider for employee data. |
 | `GEOCODING_USER_AGENT` | Identifying application name and contact information for the provider. Required to enable address requests. |
 | `GEOCODING_API_KEY` | Optional Bearer credential for the configured endpoint. |
+| `GEOCODING_ATTRIBUTION` | Optional credit printed on the photo when an address is included. Set this for OpenStreetMap data. |
 | `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` | Optional tile URL and its provider attribution. The default uses attribution-bearing OpenStreetMap tiles. |
 | Phase 4 GPS and business timezone settings | Existing maximum accuracy, GPS age, maximum shift length and organization time zone apply. |
 
 Cloudinary authenticates the original JPEG asset. The backend requests it with a 60-second signed provider URL and sends the bytes only after checking current authorization. The mobile and browser clients receive neither provider credentials nor a public photo URL. Uploads use HTTPS. Keep maps and geocoding providers consistent with your organization's employee privacy policy and provider terms. Use public Nominatim only for policy-compliant limited development with non-sensitive coordinates. Provide a production tile service for substantial traffic. [Cloudinary authenticated media](https://cloudinary.com/documentation/control_access_to_media) · [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/) · [Nominatim policy](https://operations.osmfoundation.org/policies/nominatim/)
+
+### Self-hosted address lookup
+
+Choose the OpenStreetMap extract covering your service area. This local Docker Compose example uses eastern India and binds Nominatim to loopback. The first start imports the extract into a persistent volume. [Geofabrik extracts](https://download.geofabrik.de/asia/india/eastern-zone/index.html) · [Nominatim container setup](https://github.com/mediagis/nominatim-docker/blob/master/howto.md)
+
+```powershell
+$env:NOMINATIM_PBF_URL = 'https://download.geofabrik.de/asia/india/eastern-zone-latest.osm.pbf'
+$env:NOMINATIM_PASSWORD = Read-Host 'Set a Nominatim database password' -MaskInput
+docker compose -f compose.geocoding.yaml up -d
+docker compose -f compose.geocoding.yaml logs -f nominatim
+```
+
+Once the import finishes, use a public landmark to verify the local endpoint.
+
+```powershell
+Invoke-RestMethod 'http://127.0.0.1:8088/reverse?lat=22.5448&lon=88.3426&format=jsonv2' |
+  Select-Object -ExpandProperty display_name
+```
+
+Set these values in `apps/api/.env` and restart the development API.
+
+```dotenv
+GEOCODING_REVERSE_URL=http://127.0.0.1:8088/reverse
+GEOCODING_USER_AGENT=Renuka Tracker local
+GEOCODING_ATTRIBUTION="© OpenStreetMap contributors | https://www.openstreetmap.org/copyright"
+```
+
+For Render, host Nominatim on an approved server behind an HTTPS reverse proxy and set the HTTPS `/reverse` URL, identifying user agent, and attribution in the API service environment. Set `GEOCODING_API_KEY` if the proxy expects a Bearer credential. Redeploy the API to include addresses on new uploads. The phone continues to supply the coordinates and accuracy. [OpenStreetMap attribution](https://www.openstreetmap.org/copyright)
 
 ## Workflow and data
 
