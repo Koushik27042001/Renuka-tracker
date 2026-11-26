@@ -2,7 +2,7 @@ import 'react-native-get-random-values';
 import { VisitCamera, VisitDetail, VisitDraft, VisitHistory } from './src/visits';
 import { colors, homeColors } from './src/theme';
 import { useEffect, useRef, useState } from 'react';
-import { Image, StatusBar, Text, TextInput, View } from 'react-native';
+import { StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import {
@@ -16,6 +16,7 @@ import { OfflineQueue, useForegroundVisitSync } from './src/OfflineQueue';
 import { SignInLayout, signInStyles } from './src/SignInLayout';
 import { EmployeeDrawer, ToolbarButton, type DrawerRoute } from './src/EmployeeDrawer';
 import { PermissionSettings } from './src/PermissionSettings';
+import { RenukaLogo } from './src/RenukaLogo';
 import {
   cachedEmployee,
   isTransientMobileError,
@@ -57,13 +58,7 @@ function LaunchScreen() {
       }}
     >
       <StatusBar barStyle="light-content" />
-      <Image
-        source={require('./assets/cropped-LogoRenuka.jpg')}
-        style={{ width: 200, height: 152, backgroundColor: colors.white }}
-        resizeMode="contain"
-        accessibilityLabel="Renuka Safety Solutions"
-        accessible
-      />
+      <RenukaLogo style={branding.launchLogo} />
     </View>
   );
 }
@@ -249,7 +244,20 @@ function SessionApp() {
               ),
             })}
           >
-            <Stack.Screen name="Attendance" options={{ title: 'RSS HRMS Desk' }}>
+            <Stack.Screen
+              name="Attendance"
+              options={{
+                title: 'RSS HRMS Desk',
+                headerTitle: () => (
+                  <View style={branding.header}>
+                    <RenukaLogo decorative style={branding.headerLogo} />
+                    <Text accessibilityRole="header" numberOfLines={1} style={branding.headerTitle}>
+                      RSS HRMS Desk
+                    </Text>
+                  </View>
+                ),
+              }}
+            >
               {(props) => (
                 <AttendanceHome
                   {...props}
@@ -333,6 +341,13 @@ function SessionApp() {
     </SafeAreaView>
   );
 }
+
+const branding = StyleSheet.create({
+  launchLogo: { width: 200, height: 152 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  headerLogo: { width: 42, height: 32, borderRadius: 6 },
+  headerTitle: { flexShrink: 1, color: colors.white, fontSize: 17, fontWeight: '800' },
+});
 export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>

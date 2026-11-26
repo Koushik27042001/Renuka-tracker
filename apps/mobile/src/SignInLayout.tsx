@@ -3,7 +3,6 @@ import { colors } from './theme';
 import {
   AccessibilityInfo,
   Animated,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { RenukaLogo } from './RenukaLogo';
 
 export function SignInLayout({ children }: { children: ReactNode }) {
   const progress = useRef(new Animated.Value(0)).current;
@@ -74,13 +74,7 @@ export function SignInLayout({ children }: { children: ReactNode }) {
                   : undefined
               }
             >
-              <Image
-                source={require('../assets/cropped-LogoRenuka.jpg')}
-                resizeMode="contain"
-                accessible
-                accessibilityLabel="Renuka Safety Solutions"
-                style={signInStyles.logo}
-              />
+              <RenukaLogo style={signInStyles.logo} />
             </Animated.View>
             <Text accessibilityRole="header" style={signInStyles.title}>
               RSS HRMS Desk

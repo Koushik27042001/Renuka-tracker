@@ -94,8 +94,8 @@ function DashboardLink({ title, onPress }: { title: string; onPress: () => void 
       onPress={onPress}
       style={({ pressed }) => [styles.dashboardLink, pressed && styles.dashboardLinkPressed]}
     >
-      <Text style={styles.dashboardLabel}>{title}</Text>
       <View importantForAccessibility="no" style={styles.chevron} />
+      <Text style={styles.dashboardLabel}>{title}</Text>
     </Pressable>
   );
 }
@@ -232,21 +232,23 @@ export function AttendanceHome({
         />
       }
     >
-      <View style={[styles.hero, styles.homeHero]}>
-        <Text style={styles.homeHeroMeta}>{employee.employeeCode}</Text>
-        <Text accessibilityRole="header" style={styles.heroTitle}>
+      <View style={styles.homeIdentity}>
+        <Text accessibilityRole="header" style={styles.homeName}>
           {employee.fullName}
         </Text>
-        {data?.attendanceDate && (
-          <Text style={styles.heroMeta}>
-            {new Date(data.attendanceDate + 'T00:00:00Z').toLocaleDateString(undefined, {
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              timeZone: 'UTC',
-            })}
-          </Text>
-        )}
+        <View style={styles.homeMetaRow}>
+          <Text style={styles.homeCode}>{employee.employeeCode}</Text>
+          {data?.attendanceDate && (
+            <Text style={styles.homeDate}>
+              {new Date(data.attendanceDate + 'T00:00:00Z').toLocaleDateString(undefined, {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                timeZone: 'UTC',
+              })}
+            </Text>
+          )}
+        </View>
       </View>
       {updateNotice}
       {current.isPending && (
@@ -258,11 +260,6 @@ export function AttendanceHome({
       {current.error && <Problem message={current.error.message} retry={() => void refetch()} />}
       {data && (
         <View style={[styles.card, styles.homeCard]}>
-          {unverified && (
-            <Text style={styles.muted}>
-              Last saved attendance. Waiting for server confirmation.
-            </Text>
-          )}
           <View style={styles.shiftHeading}>
             <Text accessibilityRole="header" style={styles.shiftTitle}>
               Attendance
@@ -274,6 +271,7 @@ export function AttendanceHome({
               </Text>
             </View>
           </View>
+          {unverified && <Text style={styles.muted}>Waiting for server confirmation.</Text>}
           {row && !unverified && (checkedIn || row.workingMinutes != null) && (
             <View style={styles.durationPanel}>
               <Text style={styles.timeLabel}>{checkedIn ? 'Time on duty' : 'Hours worked'}</Text>
@@ -683,9 +681,26 @@ export const styles = StyleSheet.create({
   },
   hero: { padding: 22, borderRadius: 20, backgroundColor: colors.forest, gap: 6 },
   homePage: { gap: 16, paddingHorizontal: 18, paddingBottom: 28 },
-  homeHero: { padding: 24, borderRadius: 24 },
-  homeHeroMeta: { color: colors.sand, fontSize: 13, fontWeight: '700', letterSpacing: 0.6 },
-  homeCard: { gap: 15, padding: 18, borderRadius: 20 },
+  homeIdentity: { gap: 9, paddingHorizontal: 4, paddingTop: 6 },
+  homeName: { color: colors.forest, fontSize: 30, fontWeight: '800' },
+  homeMetaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
+  homeCode: {
+    color: colors.hunter,
+    backgroundColor: colors.greenWash,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  homeDate: { color: colors.muted, fontSize: 14 },
+  homeCard: {
+    gap: 15,
+    padding: 18,
+    borderRadius: 22,
+    borderTopWidth: 3,
+    borderTopColor: homeColors.red,
+  },
   shiftHeading: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -724,24 +739,25 @@ export const styles = StyleSheet.create({
   heroTitle: { color: colors.white, fontFamily: 'serif', fontSize: 29, fontWeight: '700' },
   heroMeta: { color: colors.sand, fontSize: 15, lineHeight: 22 },
   dashboardLinks: {
-    gap: 2,
-    borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: colors.line,
-    borderWidth: 1,
-    borderColor: colors.line,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   dashboardLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexGrow: 1,
+    flexBasis: '29%',
+    minWidth: 92,
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    minHeight: 54,
-    paddingVertical: 13,
-    paddingHorizontal: 16,
+    minHeight: 84,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.line,
     backgroundColor: colors.white,
-    gap: 14,
+    gap: 9,
   },
-  dashboardLabel: { flexShrink: 1, color: colors.forest, fontSize: 16, fontWeight: '700' },
+  dashboardLabel: { color: colors.forest, fontSize: 14, fontWeight: '800' },
   chevron: {
     width: 8,
     height: 8,
@@ -749,7 +765,7 @@ export const styles = StyleSheet.create({
     borderRightWidth: 2,
     borderColor: colors.hunter,
     transform: [{ rotate: '45deg' }],
-    marginRight: 4,
+    alignSelf: 'flex-end',
   },
   dashboardLinkPressed: { backgroundColor: colors.greenWash },
   timer: { fontSize: 34, color: colors.forest, fontVariant: ['tabular-nums'], fontWeight: '700' },

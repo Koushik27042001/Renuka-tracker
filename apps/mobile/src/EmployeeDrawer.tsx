@@ -1,7 +1,8 @@
 ﻿import { useRef } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors } from './theme';
+import { colors, homeColors } from './theme';
+import { RenukaLogo } from './RenukaLogo';
 
 const links = [
   ['Attendance', 'Home'],
@@ -91,6 +92,7 @@ export function EmployeeDrawer({
         <SafeAreaView style={layout.drawer} accessibilityViewIsModal>
           <ScrollView ref={panel} contentContainerStyle={layout.content}>
             <View style={layout.heading}>
+              <RenukaLogo decorative style={layout.logo} />
               <Text style={layout.brand}>RSS HRMS Desk</Text>
               <Pressable
                 accessibilityRole="button"
@@ -116,7 +118,8 @@ export function EmployeeDrawer({
                 onPress={() => open(route)}
                 style={({ pressed }) => [
                   layout.link,
-                  (pressed || current === route) && layout.selected,
+                  pressed && layout.pressed,
+                  current === route && layout.selected,
                 ]}
               >
                 <Text style={layout.linkLabel}>{label}</Text>
@@ -151,7 +154,8 @@ const layout = StyleSheet.create({
   drawer: { flex: 1, width: '84%', maxWidth: 340, backgroundColor: colors.forest },
   content: { gap: 8, padding: 16 },
   heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  brand: { flex: 1, fontSize: 22, fontWeight: '700', color: colors.white },
+  logo: { width: 52, height: 40, borderRadius: 8 },
+  brand: { flex: 1, fontSize: 18, fontWeight: '800', color: colors.white },
   close: { color: colors.white, fontSize: 26 },
   account: {
     flexDirection: 'row',
@@ -170,6 +174,11 @@ const layout = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 10,
   },
-  selected: { backgroundColor: colors.hunter },
+  pressed: { backgroundColor: colors.hunter },
+  selected: {
+    backgroundColor: colors.hunter,
+    borderStartWidth: 3,
+    borderStartColor: homeColors.red,
+  },
   linkLabel: { color: colors.white, fontSize: 16, fontWeight: '600' },
 });
