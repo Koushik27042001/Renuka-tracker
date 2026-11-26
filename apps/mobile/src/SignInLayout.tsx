@@ -3,6 +3,7 @@ import { colors } from './theme';
 import {
   AccessibilityInfo,
   Animated,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -57,8 +58,6 @@ export function SignInLayout({ children }: { children: ReactNode }) {
           contentContainerStyle={signInStyles.page}
         >
           <View style={signInStyles.hero}>
-            <View pointerEvents="none" style={signInStyles.outerRing} />
-            <View pointerEvents="none" style={signInStyles.innerRing} />
             <Animated.View
               style={
                 animate
@@ -75,19 +74,16 @@ export function SignInLayout({ children }: { children: ReactNode }) {
                   : undefined
               }
             >
-              <View
-                accessible={false}
-                importantForAccessibility="no-hide-descendants"
-                style={signInStyles.icon}
-              >
-                <Text style={signInStyles.monogram}>R</Text>
-              </View>
+              <Image
+                source={require('../assets/cropped-LogoRenuka.jpg')}
+                resizeMode="contain"
+                accessible
+                accessibilityLabel="Renuka Safety Solutions"
+                style={signInStyles.logo}
+              />
             </Animated.View>
             <Text accessibilityRole="header" style={signInStyles.title}>
-              Rss hrms desk
-            </Text>
-            <Text style={signInStyles.subtitle}>
-              Check in for your shift, log field visits, and review your attendance.
+              RSS HRMS Desk
             </Text>
           </View>
           {children}
@@ -117,42 +113,13 @@ export const signInStyles = StyleSheet.create({
     padding: 24,
     gap: 10,
   },
-  outerRing: {
-    position: 'absolute',
-    width: 230,
-    height: 230,
-    right: -80,
-    top: -100,
-    borderWidth: 1,
-    borderRadius: 115,
-    borderColor: colors.gold,
-  },
-  innerRing: {
-    position: 'absolute',
-    width: 170,
-    height: 170,
-    right: -50,
-    top: -70,
-    borderWidth: 1,
-    borderRadius: 85,
-    borderColor: colors.gold,
-  },
-  icon: {
-    width: 52,
-    height: 52,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.greenWash,
-  },
-  monogram: {
-    color: colors.hunter,
-    fontSize: 28,
-    fontWeight: '800',
-    includeFontPadding: false,
+  logo: {
+    width: 95,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: colors.white,
   },
   title: { color: colors.white, fontFamily: 'serif', fontSize: 32, fontWeight: '700' },
-  subtitle: { color: colors.sand, fontSize: 15, lineHeight: 22 },
   form: {
     padding: 20,
     borderRadius: 18,

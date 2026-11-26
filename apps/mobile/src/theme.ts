@@ -18,9 +18,4 @@ export const colors = {
 
 export const homeColors = {
   red: '#A61E32',
-  sky: '#EAF7FD',
-  skyAccent: '#B9E5F9',
-  skyPressed: '#D6EFFB',
-  line: '#C4E4F3',
-  white: colors.white,
 } as const;

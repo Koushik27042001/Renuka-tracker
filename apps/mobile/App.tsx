@@ -217,7 +217,7 @@ function SessionApp() {
             initialRouteName="Attendance"
             screenOptions={({ route }) => ({
               contentStyle: {
-                backgroundColor: route.name === 'Attendance' ? homeColors.sky : colors.ivory,
+                backgroundColor: colors.ivory,
               },
               headerStyle: {
                 backgroundColor: route.name === 'Attendance' ? homeColors.red : colors.forest,
@@ -249,7 +249,7 @@ function SessionApp() {
               ),
             })}
           >
-            <Stack.Screen name="Attendance" options={{ title: 'Rss hrms desk' }}>
+            <Stack.Screen name="Attendance" options={{ title: 'RSS HRMS Desk' }}>
               {(props) => (
                 <AttendanceHome
                   {...props}

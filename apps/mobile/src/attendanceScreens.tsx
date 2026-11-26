@@ -65,12 +65,13 @@ export function Action({
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={[
+      style={({ pressed }) => [
         styles.button,
         secondary && styles.secondary,
         variant === 'attendance' && styles.attendanceButton,
         variant === 'home' && styles.homeButton,
         disabled && styles.disabled,
+        pressed && styles.buttonPressed,
       ]}
     >
       <Text
@@ -86,23 +87,15 @@ export function Action({
   );
 }
 
-function DashboardLink({
-  title,
-  detail,
-  onPress,
-}: {
-  title: string;
-  detail: string;
-  onPress: () => void;
-}) {
+function DashboardLink({ title, onPress }: { title: string; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
       onPress={onPress}
       style={({ pressed }) => [styles.dashboardLink, pressed && styles.dashboardLinkPressed]}
     >
-      <Text style={styles.label}>{title}</Text>
-      <Text style={styles.muted}>{detail}</Text>
+      <Text style={styles.dashboardLabel}>{title}</Text>
+      <View importantForAccessibility="no" style={styles.chevron} />
     </Pressable>
   );
 }
@@ -215,6 +208,7 @@ export function AttendanceHome({
   }, [checkoutDeadline, serverTime, current.dataUpdatedAt, refetch]);
   const row = data?.attendance;
   const checkedIn = row?.status === 'CHECKED_IN';
+  const onDuty = checkedIn && !unverified;
   async function logout() {
     setLogoutError('');
     setSigningOut(true);
@@ -239,14 +233,20 @@ export function AttendanceHome({
       }
     >
       <View style={[styles.hero, styles.homeHero]}>
-        <View style={styles.homeAccent} />
+        <Text style={styles.homeHeroMeta}>{employee.employeeCode}</Text>
         <Text accessibilityRole="header" style={styles.heroTitle}>
           {employee.fullName}
         </Text>
-        <Text style={[styles.heroMeta, styles.homeHeroMeta]}>
-          {employee.employeeCode}
-          {data?.attendanceDate ? ' · ' + data.attendanceDate : ''}
-        </Text>
+        {data?.attendanceDate && (
+          <Text style={styles.heroMeta}>
+            {new Date(data.attendanceDate + 'T00:00:00Z').toLocaleDateString(undefined, {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              timeZone: 'UTC',
+            })}
+          </Text>
+        )}
       </View>
       {updateNotice}
       {current.isPending && (
@@ -263,22 +263,51 @@ export function AttendanceHome({
               Last saved attendance. Waiting for server confirmation.
             </Text>
           )}
-          <Text style={styles.label}>{row ? statusNames[row.status] : 'Not checked in'}</Text>
-          {checkedIn && row && !unverified ? (
-            <WorkingTimer
-              checkIn={row.checkInTime}
-              serverTime={data.serverTime}
-              verifiedAt={current.dataUpdatedAt}
-            />
-          ) : (
-            <Text style={styles.timer}>{row ? minutesText(row.workingMinutes) : '—'}</Text>
+          <View style={styles.shiftHeading}>
+            <Text accessibilityRole="header" style={styles.shiftTitle}>
+              Attendance
+            </Text>
+            <View style={[styles.statusBadge, onDuty && styles.statusOnDuty]}>
+              <View style={[styles.statusDot, onDuty && styles.statusDotOnDuty]} />
+              <Text style={[styles.statusText, onDuty && styles.statusTextOnDuty]}>
+                {unverified ? 'Last saved' : row ? statusNames[row.status] : 'Not checked in'}
+              </Text>
+            </View>
+          </View>
+          {row && !unverified && (checkedIn || row.workingMinutes != null) && (
+            <View style={styles.durationPanel}>
+              <Text style={styles.timeLabel}>{checkedIn ? 'Time on duty' : 'Hours worked'}</Text>
+              {checkedIn ? (
+                <WorkingTimer
+                  checkIn={row.checkInTime}
+                  serverTime={data.serverTime}
+                  verifiedAt={current.dataUpdatedAt}
+                />
+              ) : (
+                <Text style={styles.timer}>{minutesText(row.workingMinutes)}</Text>
+              )}
+            </View>
           )}
-          <Text style={styles.muted}>
-            Check-in {formatShiftTime(row?.checkInTime ?? null, row?.timezone ?? data.timezone)}
-          </Text>
-          <Text style={styles.muted}>
-            Checkout {formatShiftTime(row?.checkOutTime ?? null, row?.timezone ?? data.timezone)}
-          </Text>
+          {row && (
+            <View style={styles.punches}>
+              <View style={styles.punch}>
+                <Text style={styles.timeLabel}>Check-in</Text>
+                <Text style={styles.timeValue}>
+                  {formatShiftTime(row.checkInTime, row.timezone)}
+                </Text>
+              </View>
+              <View style={styles.punch}>
+                <Text style={styles.timeLabel}>Checkout</Text>
+                <Text style={styles.timeValue}>
+                  {row.checkOutTime
+                    ? formatShiftTime(row.checkOutTime, row.timezone)
+                    : checkedIn
+                      ? 'Pending'
+                      : 'Not recorded'}
+                </Text>
+              </View>
+            </View>
+          )}
           {checkedIn && checkoutDeadline && (
             <Text style={styles.muted}>
               Check out before {formatShiftTime(checkoutDeadline, data.timezone)}
@@ -301,26 +330,12 @@ export function AttendanceHome({
           )}
         </View>
       )}
-      <View style={styles.dashboardLinks}>
-        <DashboardLink
-          title="Field visits"
-          detail="Start or review a visit"
-          onPress={() => navigation.navigate('Visits')}
-        />
-        <DashboardLink
-          title="Attendance history"
-          detail="Review your shifts"
-          onPress={() => navigation.navigate('History')}
-        />
+      <View style={styles.dashboardLinks} accessibilityLabel="Quick actions">
+        <DashboardLink title="Field visits" onPress={() => navigation.navigate('Visits')} />
+        <DashboardLink title="Attendance history" onPress={() => navigation.navigate('History')} />
         <DashboardLink
           title="Visit sync queue"
-          detail="Check pending uploads"
           onPress={() => navigation.navigate('OfflineQueue')}
-        />
-        <DashboardLink
-          title="Profile and settings"
-          detail="Manage your app and account"
-          onPress={() => navigation.navigate('Profile')}
         />
       </View>
       <MobileVisitSummary
@@ -416,7 +431,6 @@ export function ShiftScreen(
   }
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.title}>{checkout ? 'Check out' : 'Check in'}</Text>
       {confirmed ? (
         <View style={styles.card}>
           <Text style={styles.label}>{checkout ? 'Checkout confirmed' : 'Check-in confirmed'}</Text>
@@ -668,26 +682,76 @@ export const styles = StyleSheet.create({
     gap: 10,
   },
   hero: { padding: 22, borderRadius: 20, backgroundColor: colors.forest, gap: 6 },
-  homePage: { backgroundColor: homeColors.sky },
-  homeHero: { backgroundColor: homeColors.red },
-  homeHeroMeta: { color: homeColors.white },
-  homeAccent: { width: 34, height: 3, backgroundColor: homeColors.skyAccent, marginBottom: 6 },
-  homeCard: { backgroundColor: homeColors.white, borderColor: homeColors.line },
-  heroTitle: { color: colors.white, fontFamily: 'serif', fontSize: 29, fontWeight: '700' },
-  heroMeta: { color: colors.sand, fontSize: 15, lineHeight: 22 },
-  dashboardLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  dashboardLink: {
+  homePage: { gap: 16, paddingHorizontal: 18, paddingBottom: 28 },
+  homeHero: { padding: 24, borderRadius: 24 },
+  homeHeroMeta: { color: colors.sand, fontSize: 13, fontWeight: '700', letterSpacing: 0.6 },
+  homeCard: { gap: 15, padding: 18, borderRadius: 20 },
+  shiftHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  shiftTitle: { color: colors.forest, fontSize: 21, fontWeight: '800' },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.driedGreen,
+  },
+  statusOnDuty: { backgroundColor: colors.greenWash },
+  statusDot: { height: 7, width: 7, borderRadius: 4, backgroundColor: colors.muted },
+  statusDotOnDuty: { backgroundColor: colors.hunter },
+  statusText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  statusTextOnDuty: { color: colors.hunter },
+  durationPanel: { padding: 14, gap: 2, backgroundColor: colors.greenWash, borderRadius: 14 },
+  punches: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  punch: {
     flexGrow: 1,
     flexBasis: '44%',
-    minWidth: 132,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: homeColors.line,
-    backgroundColor: homeColors.white,
-    gap: 5,
+    minWidth: 115,
+    borderTopWidth: 1,
+    borderColor: colors.line,
+    paddingTop: 10,
+    gap: 3,
   },
-  dashboardLinkPressed: { backgroundColor: homeColors.skyPressed },
+  timeLabel: { color: colors.muted, fontSize: 13, fontWeight: '600' },
+  timeValue: { color: colors.ink, fontSize: 15, fontWeight: '700' },
+  heroTitle: { color: colors.white, fontFamily: 'serif', fontSize: 29, fontWeight: '700' },
+  heroMeta: { color: colors.sand, fontSize: 15, lineHeight: 22 },
+  dashboardLinks: {
+    gap: 2,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: colors.line,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  dashboardLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 54,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    backgroundColor: colors.white,
+    gap: 14,
+  },
+  dashboardLabel: { flexShrink: 1, color: colors.forest, fontSize: 16, fontWeight: '700' },
+  chevron: {
+    width: 8,
+    height: 8,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+    borderColor: colors.hunter,
+    transform: [{ rotate: '45deg' }],
+    marginRight: 4,
+  },
+  dashboardLinkPressed: { backgroundColor: colors.greenWash },
   timer: { fontSize: 34, color: colors.forest, fontVariant: ['tabular-nums'], fontWeight: '700' },
   button: {
     padding: 12,
@@ -698,6 +762,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: { color: 'white', fontSize: 16, fontWeight: '600', textAlign: 'center' },
+  buttonPressed: { opacity: 0.78, transform: [{ scale: 0.99 }] },
   secondary: { backgroundColor: colors.greenWash },
   attendanceButton: { backgroundColor: colors.rust },
   homeButton: { backgroundColor: homeColors.red },

@@ -91,7 +91,7 @@ export function EmployeeDrawer({
         <SafeAreaView style={layout.drawer} accessibilityViewIsModal>
           <ScrollView ref={panel} contentContainerStyle={layout.content}>
             <View style={layout.heading}>
-              <Text style={layout.brand}>Rss hrms desk</Text>
+              <Text style={layout.brand}>RSS HRMS Desk</Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Close menu"
