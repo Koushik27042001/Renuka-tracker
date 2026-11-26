@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { ShieldCheck } from 'lucide-react';
+import renukaLogo from '../../mobile/assets/cropped-LogoRenuka.jpg';
 import { setupAccount, signIn } from './api';
 import { useSession } from './session';
 
@@ -32,9 +32,7 @@ export function Login() {
   return (
     <main className="auth-page">
       <form className="panel auth-card" onSubmit={submit}>
-        <span className="brand-icon">
-          <ShieldCheck size={21} />
-        </span>
+        <img className="brand-icon" src={renukaLogo} alt="Renuka Safety Solutions" />
         <h1>Admin sign in</h1>
         <label>
           Email or employee code
@@ -94,9 +92,7 @@ export function AccountSetup() {
   return (
     <main className="auth-page">
       <form className="panel auth-card" onSubmit={submit}>
-        <span className="brand-icon">
-          <ShieldCheck size={21} />
-        </span>
+        <img className="brand-icon" src={renukaLogo} alt="Renuka Safety Solutions" />
         <h1>Set your password</h1>
         {success ? (
           <p role="status">Password set. You can now sign in to the employee app.</p>

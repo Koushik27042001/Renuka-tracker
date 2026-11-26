@@ -8,7 +8,6 @@ import {
   LayoutDashboard,
   LogOut,
   Settings,
-  ShieldCheck,
   Users,
   ChartNoAxesColumn,
 } from 'lucide-react';
@@ -20,6 +19,7 @@ import { EmployeeProfile } from './EmployeeProfile';
 import { EmployeesPage, initials } from './EmployeesPage';
 import { Protected, SessionProvider, useSession } from './session';
 import { AttendancePage, AttendanceDetails } from './AttendancePage';
+import renukaLogo from '../../mobile/assets/cropped-LogoRenuka.jpg';
 
 import './styles.css';
 const FieldVisitDetails = lazy(() =>
@@ -66,9 +66,7 @@ function Layout() {
     <div className="shell">
       <aside className="sidebar">
         <Link to="/" className="brand">
-          <span className="brand-icon">
-            <ShieldCheck size={21} />
-          </span>
+          <img className="brand-icon" src={renukaLogo} alt="" />
           <span>
             Renuka Tracker<small>Admin workspace</small>
           </span>
@@ -83,10 +81,15 @@ function Layout() {
       </aside>
       <div className="workspace">
         <header className="topbar">
-          <span className="workspace-label">Admin workspace</span>
+          <span className="workspace-label">Administration</span>
           <div className="topbar-user">
-            <span className="avatar">{initials(user?.fullName ?? '')}</span>
-            <span className="user-name">{user?.fullName}</span>
+            <span className="avatar" aria-hidden="true">{initials(user?.fullName ?? '')}</span>
+            <span className="topbar-account">
+              <span className="user-name">{user?.fullName}</span>
+              {user?.role && (
+                <small>{user.role === 'SUPER_ADMIN' ? 'Super administrator' : 'Administrator'}</small>
+              )}
+            </span>
             <button
               type="button"
               className="secondary icon-button"

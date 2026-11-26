@@ -22,7 +22,7 @@ import { EvidenceMap } from './EvidenceMap';
 import { FieldFiltersBar, Pages } from './FieldVisitsPage';
 import { LoadError } from './EmployeesPage';
 
-const palette = ['#6848d3', '#087c5b', '#ae4737'];
+const palette = ['#176b63', '#9e3a50', '#a25d17'];
 function Chart({
   title,
   available,
@@ -127,14 +127,10 @@ export function AnalyticsDashboard() {
   const departments = attendance.data?.byDepartment ?? [];
   return (
     <>
-      <header className="page-heading">
+      <header className="page-heading analytics-heading">
         <div>
           <h1>Operations analytics</h1>
-          <p>
-            {kpi
-              ? kpi.from + ' through ' + kpi.to + ' · ' + kpi.timezone
-              : 'Attendance, visits and review outcomes.'}
-          </p>
+          {kpi && <p>{kpi.from + ' through ' + kpi.to + ' · ' + kpi.timezone}</p>}
         </div>
         <Link className="secondary" to="/reports/locations">
           <MapPin size={17} />
@@ -167,7 +163,7 @@ export function AnalyticsDashboard() {
           Employee activity CSV
         </button>
       </div>
-      <section className="panel directory">
+      <section className="panel directory analytics-filters">
         <FieldFiltersBar
           value={filters}
           analytics
@@ -181,24 +177,6 @@ export function AnalyticsDashboard() {
         <p className="notice" role="alert">
           Select an ordered range of up to 366 days.
         </p>
-      )}
-      {enabled && (
-        <section className="panel profile-panel">
-          <h2>Recent field visits</h2>
-          {activity.isPending && <p role="status">Loading visits…</p>}
-          {activity.isError && (
-            <button className="secondary" onClick={() => void activity.refetch()}>
-              Retry recent visits
-            </button>
-          )}
-          {activity.data?.visits.length === 0 && <p>No visits match these filters.</p>}
-          {activity.data?.visits.map((visit) => (
-            <p key={visit.id}>
-              <Link to={'/visits/' + visit.id}>{visit.clientName}</Link> · {visit.visitDate} ·{' '}
-              {visit.status.replaceAll('_', ' ').toLowerCase()}
-            </p>
-          ))}
-        </section>
       )}
       {exportReport.error && (
         <p className="error-text" role="alert">
@@ -214,7 +192,7 @@ export function AnalyticsDashboard() {
       )}
       {enabled && kpi && (
         <>
-          <div className="summary-grid attendance-grid">
+          <div className="summary-grid analytics-metrics">
             {cards.map(([name, value]) => (
               <article className="panel stat" key={name}>
                 <span>{name}</span>
@@ -402,6 +380,24 @@ export function AnalyticsDashboard() {
             )}
           </section>
         </>
+      )}
+      {enabled && (
+        <section className="panel profile-panel">
+          <h2>Recent field visits</h2>
+          {activity.isPending && <p role="status">Loading visits…</p>}
+          {activity.isError && (
+            <button className="secondary" onClick={() => void activity.refetch()}>
+              Retry recent visits
+            </button>
+          )}
+          {activity.data?.visits.length === 0 && <p>No visits match these filters.</p>}
+          {activity.data?.visits.map((visit) => (
+            <p key={visit.id}>
+              <Link to={'/visits/' + visit.id}>{visit.clientName}</Link> · {visit.visitDate} ·{' '}
+              {visit.status.replaceAll('_', ' ').toLowerCase()}
+            </p>
+          ))}
+        </section>
       )}
     </>
   );
