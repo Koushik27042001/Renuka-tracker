@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, AppState, Image, ScrollView, Text, TextInput, View } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import { subscribeApiReachability } from './apiReachability';
 import type { CurrentAttendance, Visit } from '@renuka/shared';
 import { visitInput } from '@renuka/shared';
 import { Action, Problem, styles } from './attendanceScreens';
@@ -57,13 +57,10 @@ export function useForegroundVisitSync(owner?: string, maxAttempts?: number) {
       if (!online || AppState.currentState !== 'active') return;
       void cleanup.then(() => run(owner, controller.signal)).catch(() => undefined);
     };
-    const subscription = NetInfo.addEventListener((state) => {
-      online = state.isConnected === true && state.isInternetReachable !== false;
+    const subscription = subscribeApiReachability((reachable) => {
+      online = reachable;
       if (!online) controller.abort();
-      else {
-        if (controller.signal.aborted) controller = new AbortController();
-        tick();
-      }
+      else online = false;
     });
     const lifecycle = AppState.addEventListener('change', (state) => {
       if (state !== 'active') controller.abort();
@@ -112,8 +109,7 @@ export function OfflineQueue({
           if (!controller.signal.aborted) setDrafts(rows);
         })
         .catch(() => setProblem('The encrypted local queue could not be opened.'));
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      const connected = state.isConnected === true && state.isInternetReachable !== false;
+    const unsubscribe = subscribeApiReachability((connected) => {
       setOnline(connected);
       if (connected)
         void mobileAttendance
@@ -246,7 +242,7 @@ export function OfflineQueue({
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <Text style={styles.title}>Visit sync queue</Text>
       <Text style={styles.muted}>
-        {online ? 'Connected' : 'Offline. Check-in and check-out require a connection.'}
+        {online ? 'Connected' : 'Renuka server unavailable. Attendance requires a connection.'}
       </Text>
       <Text style={styles.label}>{drafts.filter((row) => !row.uploaded).length} pending sync</Text>
       {syncFlight && (

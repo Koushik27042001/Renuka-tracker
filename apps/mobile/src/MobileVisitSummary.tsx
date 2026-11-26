@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
+import { subscribeApiReachability } from './apiReachability';
 import { useQuery } from '@tanstack/react-query';
 import type { VisitPage } from '@renuka/shared';
 import { Action, styles } from './attendanceScreens';
@@ -9,7 +9,7 @@ import { offlineDrafts } from './offlineStore';
 import { onOfflineQueueChanged } from './offlineQueueEvents';
 
 export function MobileVisitSummary({ owner, open }: { owner: string; open: (id: string) => void }) {
-  const [online, setOnline] = useState(false);
+  const [online, setOnline] = useState<boolean>();
   const [pending, setPending] = useState<number>();
   useEffect(() => {
     let active = true;
@@ -20,8 +20,8 @@ export function MobileVisitSummary({ owner, open }: { owner: string; open: (id: 
         })
         .catch(() => undefined);
     const sync = onOfflineQueueChanged(refresh);
-    const connection = NetInfo.addEventListener((state) => {
-      if (active) setOnline(state.isConnected === true && state.isInternetReachable !== false);
+    const connection = subscribeApiReachability((reachable) => {
+      if (active) setOnline(reachable);
     });
     refresh();
     return () => {
@@ -32,14 +32,16 @@ export function MobileVisitSummary({ owner, open }: { owner: string; open: (id: 
   }, [owner]);
   const activity = useQuery({
     queryKey: ['visits', 'home', owner],
-    enabled: online,
+    enabled: online === true,
     queryFn: ({ signal }) =>
       authenticated<VisitPage>('/visits/me?page=1&limit=3', { owner, signal }),
   });
   return (
     <View style={styles.card}>
       <Text style={styles.label}>Field visits</Text>
-      {!online && <Text style={styles.muted}>Offline. Attendance requires a connection.</Text>}
+      {online === false && (
+        <Text style={styles.muted}>Renuka server unavailable. Attendance requires a connection.</Text>
+      )}
       {pending !== undefined && (
         <Text style={styles.muted}>{pending} saved in the visit sync queue</Text>
       )}
