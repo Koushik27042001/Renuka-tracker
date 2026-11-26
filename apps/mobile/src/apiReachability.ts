@@ -8,6 +8,7 @@ let reachable: boolean | undefined;
 let timer: ReturnType<typeof setTimeout> | undefined;
 let request: AbortController | undefined;
 let lifecycle: ReturnType<typeof AppState.addEventListener> | undefined;
+let failures = 0;
 
 function stopProbe() {
   clearTimeout(timer);
@@ -31,7 +32,7 @@ async function probe() {
   const controller = new AbortController();
   request = controller;
   let online = false;
-  const timeout = setTimeout(() => controller.abort(), 4000);
+  const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     const response = await fetch(apiUrl + HEALTH_PATH, {
       signal: controller.signal,
@@ -45,7 +46,12 @@ async function probe() {
     clearTimeout(timeout);
     if (request === controller) {
       request = undefined;
-      publish(online && !controller.signal.aborted);
+      if (online && !controller.signal.aborted) {
+        failures = 0;
+        publish(true);
+      } else if (++failures >= 2 || reachable === undefined) {
+        publish(false);
+      }
       if (listeners.size && AppState.currentState === 'active' && !request)
         timer = setTimeout(() => void probe(), 15_000 + Math.floor(Math.random() * 3000));
     }
@@ -72,6 +78,7 @@ export function subscribeApiReachability(listener: Listener) {
       lifecycle?.remove();
       lifecycle = undefined;
       reachable = undefined;
+      failures = 0;
     }
   };
 }

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Linking, Platform, ScrollView, Text, View } from 'react-native';
 import { apiUrl, appVersion } from '../config';
+import { request } from './api';
 import { Action, Problem, styles } from './attendanceScreens';
 
 type ReleasePolicy = {
@@ -18,18 +19,11 @@ export function useReleasePolicy() {
     queryKey: ['app-version', Platform.OS, appVersion],
     enabled: !!apiUrl,
     refetchInterval: 300_000,
-    queryFn: async ({ signal }): Promise<ReleasePolicy> => {
-      const response = await fetch(
-        apiUrl +
-          '/api/v1/app/version?platform=' +
-          Platform.OS +
-          '&version=' +
-          encodeURIComponent(appVersion),
+    queryFn: ({ signal }) =>
+      request<ReleasePolicy>(
+        '/app/version?platform=' + Platform.OS + '&version=' + encodeURIComponent(appVersion),
         { signal },
-      );
-      if (!response.ok) throw new Error('Could not check for an app update.');
-      return (await response.json()).data;
-    },
+      ),
   });
 }
 export function UpdateNotice({

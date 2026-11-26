@@ -477,7 +477,7 @@ export function VisitCamera({
   });
   const [capture, setCapture] = useState<Capture>();
   const locationRequest = useRef<AbortController>(null);
-  const [locationProgress, setLocationProgress] = useState('');
+  const [photoProgress, setPhotoProgress] = useState('');
   useFocusEffect(useCallback(() => () => locationRequest.current?.abort(), []));
   const current = useRef<Capture | undefined>(undefined);
   const lock = useRef(false);
@@ -515,7 +515,7 @@ export function VisitCamera({
           limits,
           () => mounted.current && !request.signal.aborted,
           request.signal,
-          setLocationProgress,
+          setPhotoProgress,
         );
         if (!photo) return;
         cleanCapture(current.current?.uri);
@@ -525,13 +525,14 @@ export function VisitCamera({
         if (!request.signal.aborted) throw error;
       } finally {
         locationRequest.current = null;
-        if (mounted.current) setLocationProgress('');
+        if (mounted.current) setPhotoProgress('');
       }
     });
   }
   async function upload() {
     if (!capture) return;
     await act(async () => {
+      setPhotoProgress('Uploading photo. Slow connections may take up to two minutes.');
       const form = new FormData();
       form.append('metadata', JSON.stringify(capture.metadata));
       form.append('image', {
@@ -555,6 +556,8 @@ export function VisitCamera({
           setCapture(undefined);
         }
         throw problem;
+      } finally {
+        if (mounted.current) setPhotoProgress('');
       }
     });
   }
@@ -581,7 +584,7 @@ export function VisitCamera({
         <View style={visitStyles.progress}>
           <ActivityIndicator color={colors.hunter} />
           <Text accessibilityLiveRegion="polite" style={styles.muted}>
-            {existing.isPending ? 'Loading visit photo…' : locationProgress || 'Working on visit photo…'}
+            {existing.isPending ? 'Loading visit photo…' : photoProgress || 'Working on visit photo…'}
           </Text>
         </View>
       )}

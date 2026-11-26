@@ -18,10 +18,9 @@ import { EmployeeDrawer, ToolbarButton, type DrawerRoute } from './src/EmployeeD
 import { PermissionSettings } from './src/PermissionSettings';
 import {
   cachedEmployee,
-  MobileApiError,
+  isTransientMobileError,
   loginEmployee,
   logoutEmployee,
-  mobileAttendance,
   onSessionInvalid,
   restoreMobileSession,
 } from './src/api';
@@ -37,7 +36,13 @@ import {
 
 const Stack = createNativeStackNavigator<AttendanceStack>();
 const client = new QueryClient({
-  defaultOptions: { queries: { retry: false } },
+  defaultOptions: {
+    queries: {
+      retry: (count, error) => count < 1 && isTransientMobileError(error),
+      retryDelay: (_, error) =>
+        isTransientMobileError(error) ? (error.retryAfterMs ?? 1500) : 1500,
+    },
+  },
 });
 type Employee = Awaited<ReturnType<typeof loginEmployee>>;
 
@@ -90,24 +95,18 @@ function SessionApp() {
   async function restore() {
     setRestoring(true);
     setRestoreError('');
+    let cached: Employee | undefined;
     try {
+      cached = await cachedEmployee().catch(() => undefined);
+      if (cached) {
+        setEmployee(cached);
+        setRestoring(false);
+      }
       const restored = (await restoreMobileSession())?.user ?? null;
       setEmployee(restored);
-      if (restored) {
-        await client.prefetchQuery({
-          queryKey: ['attendance', 'current'],
-          queryFn: ({ signal }) => mobileAttendance.current(signal),
-          networkMode: 'always',
-        });
-      }
     } catch (error) {
-      if (error instanceof MobileApiError && error.status === 0) {
-        const cached = await cachedEmployee();
-        if (cached) {
-          setEmployee(cached);
-          return;
-        }
-      }
+      if (cached && isTransientMobileError(error)) return;
+      setEmployee(null);
       setRestoreError(error instanceof Error ? error.message : 'Could not restore your session.');
     } finally {
       setRestoring(false);

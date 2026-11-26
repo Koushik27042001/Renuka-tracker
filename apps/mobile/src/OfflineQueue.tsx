@@ -55,19 +55,20 @@ export function useForegroundVisitSync(owner?: string, maxAttempts?: number) {
     const cleanup = clearInterruptedUploads().catch(() => undefined);
     const tick = () => {
       if (!online || AppState.currentState !== 'active') return;
-      void cleanup.then(() => run(owner, controller.signal)).catch(() => undefined);
+      const { signal } = controller;
+      void cleanup.then(() => {
+        if (!signal.aborted && online) return run(owner, signal);
+      }).catch(() => undefined);
     };
     const subscription = subscribeApiReachability((reachable) => {
       online = reachable;
-      if (!online) controller.abort();
-      else online = false;
+      if (online) tick();
     });
     const lifecycle = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') controller.abort();
-      else {
-        if (controller.signal.aborted) controller = new AbortController();
-        tick();
-      }
+      if (state !== 'active') {
+        online = false;
+        controller.abort();
+      } else if (controller.signal.aborted) controller = new AbortController();
     });
     const timer = setInterval(tick, 15_000);
     return () => {

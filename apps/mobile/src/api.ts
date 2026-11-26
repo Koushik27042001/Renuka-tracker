@@ -30,6 +30,12 @@ export class MobileApiError extends Error {
     super(message);
   }
 }
+export function isTransientMobileError(error: unknown): error is MobileApiError {
+  return (
+    error instanceof MobileApiError &&
+    (error.status === 0 || error.status === 429 || error.status >= 500)
+  );
+}
 export function onSessionInvalid(listener: () => void) {
   subscribers.add(listener);
   return () => {
@@ -70,7 +76,7 @@ async function store(session: Session) {
   return session;
 }
 
-async function request<T>(
+export async function request<T>(
   path: string,
   options: {
     body?: unknown;
@@ -88,7 +94,14 @@ async function request<T>(
   const abort = () => controller.abort();
   options.signal?.addEventListener('abort', abort);
   if (options.signal?.aborted) abort();
-  const timeout = setTimeout(abort, options.form ? 55_000 : 12_000);
+  let timedOut = false;
+  const timeout = setTimeout(
+    () => {
+      timedOut = true;
+      abort();
+    },
+    options.form ? 120_000 : 30_000,
+  );
   try {
     const response = await fetch(apiUrl + '/api/v1' + path, {
       method: options.method ?? (options.body === undefined ? 'GET' : 'POST'),
@@ -102,24 +115,28 @@ async function request<T>(
       body: options.form ?? (options.body === undefined ? undefined : JSON.stringify(options.body)),
     });
     if (response.ok && options.binary) return response as unknown as T;
-    const result = await response.json();
     if (!response.ok) {
+      const result = await response.json().catch(() => null);
       const retryAfter = response.headers.get('Retry-After');
-      const retryAfterMs = retryAfter && /^\d+$/.test(retryAfter)
-        ? Number(retryAfter) * 1000
-        : undefined;
+      const retryAfterMs =
+        retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : undefined;
       throw new MobileApiError(
         response.status,
-        result.message ?? 'The request failed.',
+        result?.message ??
+          (response.status >= 500
+            ? 'The server is temporarily unavailable.'
+            : 'The request failed.'),
         Number.isFinite(retryAfterMs) ? retryAfterMs : undefined,
       );
     }
-    return result.data as T;
+    return (await response.json()).data as T;
   } catch (error) {
     if (error instanceof MobileApiError) throw error;
     throw new MobileApiError(
       0,
-      'Could not confirm the request. Check your connection and try again.',
+      timedOut
+        ? 'The connection is taking too long. Retry to check whether the request went through.'
+        : 'Could not confirm the request. Check your connection and try again.',
     );
   } finally {
     clearTimeout(timeout);
@@ -173,13 +190,14 @@ export async function authenticated<T>(
     owner?: string;
   } = {},
 ) {
-  if (options.owner && !activeOwner) await restoreMobileSession();
+  if (!accessToken) await restoreMobileSession();
   const checkOwner = () => {
     if (options.owner && activeOwner !== options.owner)
       throw new MobileApiError(401, 'Sign in as the employee who captured this visit.');
   };
   checkOwner();
   const before = accessToken;
+  if (!before) throw new MobileApiError(401, 'Sign in to continue.');
   try {
     return await request<T>(path, { ...options, bearer: before });
   } catch (error) {

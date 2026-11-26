@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { captureForegroundLocation } from '../src/foregroundLocation';
 import { elapsedClock } from '../src/attendanceTime';
-import { loginEmployee, mobileAttendance, restoreMobileSession, logoutEmployee } from '../src/api';
+import {
+  loginEmployee,
+  mobileAttendance,
+  restoreMobileSession,
+  logoutEmployee,
+  request,
+} from '../src/api';
 import type { AttendanceSubmission } from '@renuka/shared';
 
 const bridge = vi.hoisted(() => ({
@@ -194,6 +200,34 @@ it('computes an elapsed clock from the server times across midnight', () => {
   expect(elapsedClock('2026-11-24T18:01:00Z', Date.parse('2026-11-24T18:00:00Z'))).toBe('00:00:00');
 });
 
+it('allows slow API responses and preserves a non-JSON proxy error status', async () => {
+  vi.useFakeTimers();
+  try {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementationOnce(async (_url, { signal }) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 20_000));
+          if (signal.aborted) throw new Error('Aborted early');
+          return Response.json({ data: { ok: true } });
+        })
+        .mockResolvedValueOnce(
+          new Response('<html>Busy</html>', {
+            status: 503,
+            headers: { 'Retry-After': '8' },
+          }),
+        ),
+    );
+    const slow = request('/example');
+    await vi.advanceTimersByTimeAsync(20_000);
+    await expect(slow).resolves.toEqual({ ok: true });
+    await expect(request('/example')).rejects.toMatchObject({ status: 503, retryAfterMs: 8000 });
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('stores the rotating credential securely and restores an active shift from the server', async () => {
   const reply = (data: unknown) => new Response(JSON.stringify({ data }));
   const session = {
@@ -229,10 +263,16 @@ it('preserves the request key and coordinates on a network retry and submits che
   const reply = (data: unknown) => new Response(JSON.stringify({ data }));
   const fetcher = vi
     .fn()
+    .mockResolvedValueOnce(reply({
+      user: { id: 'id', fullName: 'Employee', employeeCode: 'EMP0001' },
+      accessToken: 'bearer',
+      refreshToken: 'refresh',
+    }))
     .mockRejectedValueOnce(new TypeError('offline'))
     .mockResolvedValueOnce(reply({ attendance: { status: 'CHECKED_IN' } }))
     .mockResolvedValueOnce(reply({ attendance: { status: 'CHECKED_OUT', workingMinutes: 32 } }));
   vi.stubGlobal('fetch', fetcher);
+  await loginEmployee('EMP0001', 'password');
   const input: AttendanceSubmission = {
     idempotencyKey: 'b75d50f4-b642-4aa0-a5e4-71123e32dd42',
     location: { ...fallbackFix.coords, capturedAt: '2026-11-24T10:00:00Z' },
@@ -241,12 +281,12 @@ it('preserves the request key and coordinates on a network retry and submits che
   await expect(mobileAttendance.submit('check-in', input)).resolves.toMatchObject({
     status: 'CHECKED_IN',
   });
-  expect(fetcher.mock.calls[0][1].body).toBe(fetcher.mock.calls[1][1].body);
+  expect(fetcher.mock.calls[1][1].body).toBe(fetcher.mock.calls[2][1].body);
   await expect(
     mobileAttendance.submit('check-out', {
       ...input,
       attendanceId: '0123456789abcdef01234567',
     }),
   ).resolves.toMatchObject({ status: 'CHECKED_OUT', workingMinutes: 32 });
-  expect(fetcher.mock.calls[2][0]).toContain('/check-out');
+  expect(fetcher.mock.calls[3][0]).toContain('/check-out');
 });

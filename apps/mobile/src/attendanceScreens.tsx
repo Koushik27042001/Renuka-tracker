@@ -25,7 +25,8 @@ import type {
 import { MobileApiError, mobileAttendance } from './api';
 
 import { MobileVisitSummary } from './MobileVisitSummary';
-import { cacheOfflineShift } from './offlineStore';
+import { cacheOfflineShift, readOfflineShift } from './offlineStore';
+import { subscribeApiReachability } from './apiReachability';
 import { uniqueId } from './requestId';
 import { captureForegroundLocation, isFreshLocation } from './foregroundLocation';
 import { elapsedClock, formatShiftTime } from './attendanceTime';
@@ -171,22 +172,40 @@ export function AttendanceHome({
     queryKey: ['attendance', 'current'],
     queryFn: ({ signal }) => mobileAttendance.current(signal),
   });
+  const saved = useQuery({
+    queryKey: ['saved-attendance', employee.id],
+    queryFn: async () => (await readOfflineShift(employee.id)) ?? null,
+    enabled: !current.data,
+  });
   const refetch = current.refetch;
   useFocusEffect(
     useCallback(() => {
-      void refetch();
+      void refetch({ cancelRefetch: false });
       const subscription = AppState.addEventListener('change', (state) => {
-        if (state === 'active') void refetch();
+        if (state === 'active') void refetch({ cancelRefetch: false });
       });
-      return () => subscription.remove();
+      let hadFailure = false;
+      const unsubscribe = subscribeApiReachability((reachable) => {
+        if (!reachable) hadFailure = true;
+        else if (hadFailure) {
+          hadFailure = false;
+          void refetch({ cancelRefetch: false });
+        }
+      });
+      return () => {
+        subscription.remove();
+        unsubscribe();
+      };
     }, [refetch]),
   );
-  const data = current.data;
+  const live = current.data;
+  const data = live ?? saved.data;
+  const unverified = !live || current.isError;
   useEffect(() => {
-    if (data) void cacheOfflineShift(employee.id, data).catch(() => undefined);
-  }, [employee.id, data]);
-  const checkoutDeadline = data?.checkoutDeadline;
-  const serverTime = data?.serverTime;
+    if (live) void cacheOfflineShift(employee.id, live).catch(() => undefined);
+  }, [employee.id, live]);
+  const checkoutDeadline = live?.checkoutDeadline;
+  const serverTime = live?.serverTime;
   useEffect(() => {
     if (!checkoutDeadline || !serverTime) return;
     const remaining = Date.parse(checkoutDeadline) - Date.parse(serverTime);
@@ -230,49 +249,57 @@ export function AttendanceHome({
         </Text>
       </View>
       {updateNotice}
-      {current.isPending ? (
-        <ActivityIndicator color={homeColors.red} accessibilityLabel="Loading attendance" />
-      ) : current.error ? (
-        <Problem message={current.error.message} retry={() => void refetch()} />
-      ) : (
-        data && (
-          <View style={[styles.card, styles.homeCard]}>
-            <Text style={styles.label}>{row ? statusNames[row.status] : 'Not checked in'}</Text>
-            {checkedIn && row ? (
-              <WorkingTimer
-                checkIn={row.checkInTime}
-                serverTime={data.serverTime}
-                verifiedAt={current.dataUpdatedAt}
-              />
-            ) : (
-              <Text style={styles.timer}>{row ? minutesText(row.workingMinutes) : '—'}</Text>
-            )}
+      {current.isPending && (
+        <View>
+          <ActivityIndicator color={homeColors.red} accessibilityLabel="Loading attendance" />
+          <Text style={styles.muted}>Checking attendance with the server…</Text>
+        </View>
+      )}
+      {current.error && <Problem message={current.error.message} retry={() => void refetch()} />}
+      {data && (
+        <View style={[styles.card, styles.homeCard]}>
+          {unverified && (
             <Text style={styles.muted}>
-              Check-in {formatShiftTime(row?.checkInTime ?? null, row?.timezone ?? data.timezone)}
+              Last saved attendance. Waiting for server confirmation.
             </Text>
+          )}
+          <Text style={styles.label}>{row ? statusNames[row.status] : 'Not checked in'}</Text>
+          {checkedIn && row && !unverified ? (
+            <WorkingTimer
+              checkIn={row.checkInTime}
+              serverTime={data.serverTime}
+              verifiedAt={current.dataUpdatedAt}
+            />
+          ) : (
+            <Text style={styles.timer}>{row ? minutesText(row.workingMinutes) : '—'}</Text>
+          )}
+          <Text style={styles.muted}>
+            Check-in {formatShiftTime(row?.checkInTime ?? null, row?.timezone ?? data.timezone)}
+          </Text>
+          <Text style={styles.muted}>
+            Checkout {formatShiftTime(row?.checkOutTime ?? null, row?.timezone ?? data.timezone)}
+          </Text>
+          {checkedIn && checkoutDeadline && (
             <Text style={styles.muted}>
-              Checkout {formatShiftTime(row?.checkOutTime ?? null, row?.timezone ?? data.timezone)}
+              Check out before {formatShiftTime(checkoutDeadline, data.timezone)}
             </Text>
-            {checkedIn && checkoutDeadline && (
-              <Text style={styles.muted}>
-                Check out before {formatShiftTime(checkoutDeadline, data.timezone)}
-              </Text>
-            )}
-            {checkedIn && row ? (
-              <Action
-                title="Check out"
-                variant="home"
-                onPress={() => navigation.navigate('CheckOut', { limits: data.limits, id: row.id })}
-              />
-            ) : (
-              <Action
-                title="Check in"
-                variant="home"
-                onPress={() => navigation.navigate('CheckIn', { limits: data.limits })}
-              />
-            )}
-          </View>
-        )
+          )}
+          {checkedIn && row ? (
+            <Action
+              title="Check out"
+              variant="home"
+              disabled={unverified}
+              onPress={() => navigation.navigate('CheckOut', { limits: data.limits, id: row.id })}
+            />
+          ) : (
+            <Action
+              title="Check in"
+              variant="home"
+              disabled={unverified}
+              onPress={() => navigation.navigate('CheckIn', { limits: data.limits })}
+            />
+          )}
+        </View>
       )}
       <View style={styles.dashboardLinks}>
         <DashboardLink
@@ -454,9 +481,10 @@ export function ShiftScreen(
             <Action
               title="Open settings"
               onPress={() =>
-                void (Platform.OS === 'android' && message.includes('Location Services')
-                  ? Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS')
-                  : Linking.openSettings()
+                void (
+                  Platform.OS === 'android' && message.includes('Location Services')
+                    ? Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS')
+                    : Linking.openSettings()
                 ).catch(() => undefined)
               }
               secondary
