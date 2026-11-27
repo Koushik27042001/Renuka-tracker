@@ -22,6 +22,7 @@ let jpeg: Buffer;
 const tokens: Record<string, string> = {};
 const vault = new Map<string, Buffer>();
 let fail = false;
+let addressAvailable = true;
 const store: EvidenceStore = {
   async upload(publicId, image) {
     if (fail) throw new Error('Test storage interruption');
@@ -82,7 +83,12 @@ let evidenceId: string;
 
 beforeAll(async () => {
   mongo = await MongoMemoryServer.create({ instance: { launchTimeout: 30000 } });
-  const settings = { ...config(), MONGODB_URI: mongo.getUri('renuka_field_visits_test') };
+  const settings = config({
+    MONGODB_URI: mongo.getUri('renuka_field_visits_test'),
+    GEOCODING_REQUIRED: 'true',
+    GEOCODING_REVERSE_URL: 'https://geo.example.test/reverse',
+    GEOCODING_USER_AGENT: 'FieldForce test client',
+  });
   const logger = createLogger(settings);
   const opened = openDatabase(settings, logger);
   db = opened;
@@ -98,7 +104,10 @@ beforeAll(async () => {
     logger,
     passwords,
     evidenceStore: store,
-    geocoder: async () => ({ address: 'Fixture locality', provider: 'isolated-test' }),
+    geocoder: async () =>
+      addressAvailable
+        ? { address: 'Fixture locality', provider: 'isolated-test' }
+        : { address: null, provider: null },
     ready: () => databaseReady(opened.connection),
     connected: () => opened.connection.readyState === 1,
   });
@@ -194,6 +203,32 @@ it('uses configured geocoding, caches successful responses and falls back withou
   }
 });
 
+it('sends the LocationIQ token as a query parameter and reads the mapped address', async () => {
+  const settings = {
+    GEOCODING_PROVIDER: 'locationiq',
+    GEOCODING_REVERSE_URL: 'https://eu1.locationiq.com/v1/reverse',
+    GEOCODING_USER_AGENT: 'FieldForce test client',
+  };
+  expect(() => config(settings)).toThrow('GEOCODING_API_KEY');
+  const lookup = vi.fn().mockResolvedValue(
+    Response.json({ display_name: '12 Example Road, Kolkata, India' }),
+  );
+  vi.stubGlobal('fetch', lookup);
+  try {
+    const reverse = reverseGeocoder(config({ ...settings, GEOCODING_API_KEY: 'fixture-token' }));
+    await expect(reverse(22.57, 88.36, 15)).resolves.toEqual({
+      address: '12 Example Road, Kolkata, India',
+      provider: 'eu1.locationiq.com',
+    });
+    const [url, options] = lookup.mock.calls[0];
+    expect(url.searchParams.get('key')).toBe('fixture-token');
+    expect(url.searchParams.get('format')).toBe('json');
+    expect(options.headers).not.toHaveProperty('Authorization');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
 it('allows an opt-in local geocoder in development and requires HTTPS in production', () => {
   const settings = {
     GEOCODING_REVERSE_URL: 'http://127.0.0.1:8088/reverse',
@@ -201,6 +236,7 @@ it('allows an opt-in local geocoder in development and requires HTTPS in product
     GEOCODING_ATTRIBUTION: '© OpenStreetMap contributors',
   };
   expect(config(settings).GEOCODING_ATTRIBUTION).toBe(settings.GEOCODING_ATTRIBUTION);
+  expect(() => config({ GEOCODING_REQUIRED: 'true' })).toThrow('GEOCODING_REVERSE_URL');
   expect(() => config({ ...settings, NODE_ENV: 'production' })).toThrow('Geocoding requires HTTPS');
   expect(() => config({ ...settings, GEOCODING_REVERSE_URL: 'http://geo.example.test/reverse' }))
     .toThrow('Geocoding requires HTTPS');
@@ -239,6 +275,13 @@ it('reserves an owned draft during attendance and rejects invalid or missing evi
 
 it('stores a single authenticated original and verifies its hash', async () => {
   const input = metadata();
+  addressAvailable = false;
+  try {
+    await upload(id, input).expect(503);
+    expect(vault.size).toBe(0);
+  } finally {
+    addressAvailable = true;
+  }
   const saved = await upload(id, input).expect(200);
   evidenceId = saved.body.data.visit.evidence.id;
   const info = saved.body.data.visit.evidence;

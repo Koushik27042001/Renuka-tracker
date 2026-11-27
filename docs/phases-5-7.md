@@ -9,9 +9,11 @@ From the workspace root, run `npm ci`, `npm run build:api` and `npm run db:index
 | `CLOUDINARY_URL` | Existing backend-only Cloudinary URL. Alternatively set all three credential fields below. |
 | `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | Separate backend-only Cloudinary credentials. |
 | `CLOUDINARY_FOLDER` | Storage namespace, defaults to `fieldforce/evidence`. Use a separate namespace per environment. |
+| `GEOCODING_REQUIRED` | When enabled, the API requires a configured geocoder and asks employees to retry the same upload if it cannot resolve an address. The Render blueprint enables this for new photo uploads. |
 | `GEOCODING_REVERSE_URL` | HTTPS Nominatim-compatible reverse endpoint. Set this and `GEOCODING_USER_AGENT` on the API service to include mapped addresses on new photos. Use an organization-approved provider for employee data. |
 | `GEOCODING_USER_AGENT` | Identifying application name and contact information for the provider. Required to enable address requests. |
-| `GEOCODING_API_KEY` | Optional Bearer credential for the configured endpoint. |
+| `GEOCODING_PROVIDER` | Set to `locationiq` for LocationIQ. Defaults to `nominatim`. |
+| `GEOCODING_API_KEY` | Required LocationIQ API token for the `locationiq` provider. Optional Bearer credential for Nominatim proxies. |
 | `GEOCODING_ATTRIBUTION` | Optional credit printed on the photo when an address is included. Set this for OpenStreetMap data. |
 | `VITE_MAP_TILE_URL`, `VITE_MAP_ATTRIBUTION` | Optional tile URL and its provider attribution. The default uses attribution-bearing OpenStreetMap tiles. |
 | Phase 4 GPS and business timezone settings | Existing maximum accuracy, GPS age, maximum shift length and organization time zone apply. |
@@ -44,7 +46,7 @@ GEOCODING_USER_AGENT=Renuka Tracker local
 GEOCODING_ATTRIBUTION="© OpenStreetMap contributors | https://www.openstreetmap.org/copyright"
 ```
 
-For Render, host Nominatim on an approved server behind an HTTPS reverse proxy and set the HTTPS `/reverse` URL, identifying user agent, and attribution in the API service environment. Set `GEOCODING_API_KEY` if the proxy expects a Bearer credential. Redeploy the API to include addresses on new uploads. The phone continues to supply the coordinates and accuracy. [OpenStreetMap attribution](https://www.openstreetmap.org/copyright)
+For Render, set the reverse URL, identifying user agent, and any required attribution in the API service environment. For LocationIQ, set `GEOCODING_PROVIDER=locationiq`, `GEOCODING_REVERSE_URL=https://eu1.locationiq.com/v1/reverse`, and store the API token in `GEOCODING_API_KEY`. Set `GEOCODING_REQUIRED=true` on existing services, then redeploy the API. Upload a new visit photo from the mobile app and confirm the address appears in both the JPEG and the visit preview. The installed app receives the stamped JPEG from the API. [LocationIQ reverse geocoding](https://docs.locationiq.com/docs/reverse-geocoding)
 
 ## Workflow and data
 

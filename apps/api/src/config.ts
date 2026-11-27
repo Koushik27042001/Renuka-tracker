@@ -89,6 +89,8 @@ const schema = z.object({
     .string()
     .regex(/^[A-Za-z0-9_/-]+$/)
     .default('fieldforce/evidence'),
+  GEOCODING_REQUIRED: bool.default(false),
+  GEOCODING_PROVIDER: z.enum(['nominatim', 'locationiq']).default('nominatim'),
   GEOCODING_REVERSE_URL: z.url({ protocol: /^https?$/ }).optional(),
   GEOCODING_USER_AGENT: z.string().min(8).optional(),
   GEOCODING_API_KEY: z.string().min(1).optional(),
@@ -141,6 +143,10 @@ export function readConfig(env: NodeJS.ProcessEnv) {
     throw new Error('Invalid environment configuration: ' + fields);
   }
   const config = result.data;
+  if (config.GEOCODING_REQUIRED && !config.GEOCODING_REVERSE_URL)
+    throw new Error('Set GEOCODING_REVERSE_URL when GEOCODING_REQUIRED is enabled');
+  if (config.GEOCODING_PROVIDER === 'locationiq' && !config.GEOCODING_API_KEY)
+    throw new Error('Set GEOCODING_API_KEY when using LocationIQ');
   if (config.GEOCODING_REVERSE_URL) {
     const endpoint = new URL(config.GEOCODING_REVERSE_URL);
     const localDevelopment =

@@ -2,6 +2,8 @@ import type { Config } from '../config.js';
 type Address = { address: string | null; provider: string | null };
 export function reverseGeocoder(config: Config) {
   const { GEOCODING_REVERSE_URL: endpoint, GEOCODING_USER_AGENT: userAgent } = config;
+  const locationIQ = config.GEOCODING_PROVIDER === 'locationiq';
+  const apiKey = config.GEOCODING_API_KEY;
   const cache = new Map<string, { result: Address; until: number }>();
   const pending = new Map<string, Promise<Address>>();
   let next = 0;
@@ -24,7 +26,8 @@ export function reverseGeocoder(config: Config) {
         const url = new URL(endpoint);
         url.searchParams.set('lat', String(latitude));
         url.searchParams.set('lon', String(longitude));
-        url.searchParams.set('format', 'jsonv2');
+        url.searchParams.set('format', locationIQ ? 'json' : 'jsonv2');
+        if (locationIQ && apiKey) url.searchParams.set('key', apiKey);
         url.searchParams.set('zoom', String(zoom));
         url.searchParams.set('addressdetails', '1');
         const response = await fetch(url, {
@@ -32,9 +35,7 @@ export function reverseGeocoder(config: Config) {
           signal: AbortSignal.timeout(3500),
           headers: {
             'User-Agent': userAgent,
-            ...(config.GEOCODING_API_KEY
-              ? { Authorization: 'Bearer ' + config.GEOCODING_API_KEY }
-              : {}),
+            ...(!locationIQ && apiKey ? { Authorization: 'Bearer ' + apiKey } : {}),
           },
         });
         if (!response.ok) return unavailable;

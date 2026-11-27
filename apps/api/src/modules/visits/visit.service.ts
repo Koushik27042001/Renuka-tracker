@@ -400,6 +400,11 @@ export function visitService(
         }
         const { latitude, longitude, accuracy } = input.location;
         const address = await reverse(latitude, longitude, accuracy);
+        if (config.GEOCODING_REQUIRED && !address.address)
+          throw new AppError(
+            503,
+            'Could not look up the photo address. Try uploading the same photo again.',
+          );
         const rendered = await watermarkImage(bytes, [
           'FIELDFORCE CRM',
           user.employeeCode + ' · ' + user.fullName,

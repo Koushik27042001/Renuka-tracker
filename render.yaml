@@ -37,6 +37,12 @@ services:
         value: fieldforce/production/evidence
       - key: BUSINESS_TIMEZONE
         value: Asia/Kolkata
+      - key: GEOCODING_REQUIRED
+        value: "true"
+      - key: GEOCODING_REVERSE_URL
+        sync: false
+      - key: GEOCODING_USER_AGENT
+        sync: false
       - key: LOG_LEVEL
         value: info
       - key: OFFLINE_VISITS_ENABLED
